@@ -1,0 +1,33 @@
+[package]
+name = "gpui-m3e"
+version = "0.1.0"
+edition = "2024"
+description = "Material 3 Expressive components for GPUI Rust"
+license = "Apache-2.0"
+repository = "https://github.com/KiteShell/gpui-material"
+keywords = ["gui", "material", "gpui", "m3e"]
+categories = ["gui"]
+
+[dependencies]
+gpui = "0.2.2"
+
+[lints.clippy]
+correctness = "deny"
+suspicious = "warn"
+style = "warn"
+complexity = "warn"
+perf = "warn"
+missing_docs = "warn"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.dev.package."*"]
+opt-level = 3

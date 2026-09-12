@@ -12,11 +12,10 @@ M3E slider port for GPUI. Lib is `src/`, preview is `examples/showcase.rs`.
 ## Layout
 
 - `src/lib.rs`: facade re-exports (`components`, `motion`, `theme`) plus backward-compatible module aliases.
-- `src/components/`: modular components (`slider.rs`, `switch.rs`, `mod.rs`).
+- `src/components/`: modular components (`slider.rs`, `switch.rs`, `split_button.rs`, `mod.rs`).
 - `src/motion.rs`: `SpringParams`, `SpringState`, and `spring_step` physics engine.
 - `src/theme.rs`: light and dark palettes transcribed from `PaletteTokens.kt`.
-- `examples/showcase.rs`: `Showcase` view with slider and switch models.
-- `examples/export_spec.rs`: exports Rust component specs to `web/spec.js`.
+- `examples/showcase.rs`: `Showcase` view with slider, switch, and split button models.
 - `references/androidx/`: sparse checkout, official `Slider.kt` plus `tokens/SliderTokens.kt`. Read only, never edit.
 - `references/zed/`: sparse checkout, `crates/gpui` examples for interaction patterns. Read only.
 

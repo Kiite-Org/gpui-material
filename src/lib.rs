@@ -9,6 +9,10 @@ pub mod motion;
 pub mod theme;
 
 pub use components::slider::{SliderColors, SliderMetrics, SliderSpec};
+pub use components::split_button::{
+    SplitButtonColors, SplitButtonMetrics, SplitButtonModel, SplitButtonSize, SplitButtonVariant,
+    SplitIconKind, draw_chevron_icon, draw_split_icon,
+};
 pub use components::switch::{
     IconSegment, SwitchColors, SwitchMetrics, SwitchModel, animated_icon_segments,
     draw_switch_icon, icon_segments, thumb_geometry,
@@ -19,6 +23,9 @@ pub use theme::{M3Palette, dark_scheme, light_scheme};
 pub mod slider {
     pub use crate::components::slider::*;
     pub use crate::motion::*;
+}
+pub mod split_button {
+    pub use crate::components::split_button::*;
 }
 pub mod switch {
     pub use crate::components::switch::*;

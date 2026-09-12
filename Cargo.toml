@@ -38,7 +38,3 @@ opt-level = 3
 [[example]]
 name = "showcase"
 path = "examples/showcase.rs"
-
-[[example]]
-name = "export_spec"
-path = "examples/export_spec.rs"

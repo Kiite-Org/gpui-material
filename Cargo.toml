@@ -9,7 +9,14 @@ keywords = ["gui", "material", "gpui", "m3e"]
 categories = ["gui"]
 
 [dependencies]
-gpui = "0.2.2"
+# Pinned upstream snapshot of Zed main on branch wgpu-trial.
+# Stable crates.io gpui stays at 0.2.2 while main moved to wgpu.
+gpui = { package = "gpui-pre", version = "=0.3.4" }
+
+[dev-dependencies]
+# Platform entry point for the gallery example only.
+# Kept out of [dependencies] so library users never pull it.
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.4" }
 
 [lints.clippy]
 correctness = "deny"

@@ -1,7 +1,8 @@
 use gpui::{
-    App, Application, Bounds, Context, Pixels, Render, SharedString, Window, WindowBounds,
-    WindowOptions, deferred, div, prelude::*, px, size,
+    App, Bounds, Context, Pixels, Render, SharedString, Window, WindowBounds, WindowOptions,
+    deferred, div, prelude::*, px, size,
 };
+use gpui_platform::application;
 use gpui_m3e::{
     M3Palette, SliderSpec, SplitButtonModel, SplitButtonSize, SplitButtonVariant, SplitIconKind,
     SpringParams, SpringState, SwitchColors, SwitchMetrics, SwitchModel, animated_icon_segments,
@@ -1254,7 +1255,7 @@ impl Render for Showcase {
 }
 
 fn main() {
-    Application::new().run(|cx: &mut App| {
+    application().run(|cx: &mut App| {
         let bounds = Bounds::centered(None, size(px(680.0), px(900.0)), cx);
         cx.open_window(
             WindowOptions {

@@ -16,7 +16,7 @@ gpui = { package = "gpui-pre", version = "=0.3.4" }
 [dev-dependencies]
 # Platform entry point for the gallery example only.
 # Kept out of [dependencies] so library users never pull it.
-gpui_platform = { package = "gpui-pre-platform", version = "=0.3.4" }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.4", features = ["wayland", "x11"] }
 
 [lints.clippy]
 correctness = "deny"

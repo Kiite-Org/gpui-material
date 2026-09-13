@@ -1,6 +1,6 @@
 use gpui::{
-    App, Bounds, Context, Pixels, Render, SharedString, Window, WindowBounds, WindowOptions,
-    deferred, div, prelude::*, px, size,
+    App, Application, Bounds, Context, Pixels, Render, SharedString, Window, WindowBounds,
+    WindowOptions, deferred, div, prelude::*, px, size,
 };
 use gpui_platform::application;
 use gpui_m3e::{
@@ -1255,7 +1255,14 @@ impl Render for Showcase {
 }
 
 fn main() {
-    application().run(|cx: &mut App| {
+    // Temporary probe: GPUI_M3E_NO_A11Y=1 boots with AccessKit forcibly
+    // disabled so we can measure what the a11y stack costs resident.
+    let app = if std::env::var("GPUI_M3E_NO_A11Y").is_ok() {
+        Application::new_inaccessible(gpui_platform::current_platform(false))
+    } else {
+        application()
+    };
+    app.run(|cx: &mut App| {
         let bounds = Bounds::centered(None, size(px(680.0), px(900.0)), cx);
         cx.open_window(
             WindowOptions {

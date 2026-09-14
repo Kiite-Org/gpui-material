@@ -1,10 +1,5 @@
 //! Material 3 Expressive Split Button component math, tokens, and models.
 //!
-//! Specification transcribed from:
-//! `references/androidx/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/SplitButton.kt`
-//! and tokens (`SplitButtonSmallTokens.kt`, `SplitButtonMediumTokens.kt`,
-//! `SplitButtonLargeTokens.kt`, `SplitButtonXSmallTokens.kt`, `SplitButtonXLargeTokens.kt`).
-//!
 //! A Split Button consists of a leading button performing a primary action
 //! and a trailing button performing a contextual secondary or toggle action (e.g. dropdown menu).
 //! Inner corners dynamically morph via damped spring physics on hover, press, and toggle.
@@ -62,7 +57,7 @@ pub enum SplitIconKind {
     Bookmark,
 }
 
-/// Geometry and spacing metrics transcribed from `SplitButton*Tokens.kt`.
+/// Geometry and spacing metrics for Material 3 Expressive split buttons.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SplitButtonMetrics {
     /// Container height in dp (32, 40, 56, 96, or 136).
@@ -442,6 +437,17 @@ pub fn draw_split_icon(
 }
 
 /// State and interaction model for a Material 3 Expressive Split Button.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use gpui_material::split_button::{SplitButtonModel, SplitButtonSize, SplitButtonVariant};
+///
+/// let mut btn = SplitButtonModel::new("Save")
+///     .size(SplitButtonSize::Medium)
+///     .variant(SplitButtonVariant::Filled)
+///     .menu_items(["Save & Publish", "Save Draft", "Export"]);
+/// ```
 #[derive(Clone, Debug)]
 pub struct SplitButtonModel {
     /// Action label text for the leading button.

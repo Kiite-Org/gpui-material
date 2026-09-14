@@ -1,4 +1,6 @@
 /target/
 /references/
+/.github/
+/docs/
 *.log
 .DS_Store

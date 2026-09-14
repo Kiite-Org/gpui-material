@@ -1,15 +1,13 @@
-//! M3E slider port.
+//! Material 3 Expressive slider specification, metrics, and colors.
 //!
-//! Source: `Slider.kt` plus `tokens/SliderTokens.kt`.
-//! Kotlin uses `SliderState(value, steps, valueRange)` with drag deltas,
-//! snap to ticks, 16dp track, 4x44dp thumb, 6dp gap. This module keeps
-//! the same numbers and behavior, expressed for GPUI.
+//! Provides metrics and color configurations for continuous and discrete sliders,
+//! including track dimensions, thumb dimensions, and tick marks.
 
 use gpui::Rgba;
 
 use crate::theme::{M3Palette, light_scheme};
 
-/// Geometry from `SliderTokens.kt`.
+/// Layout metrics and dimensions for sliders.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SliderMetrics {
     /// Inactive and active track height, 16dp.
@@ -37,18 +35,27 @@ impl Default for SliderMetrics {
 }
 
 /// Colors resolved from `SliderDefaults.colors()`.
+/// Color mapping for Material 3 Slider components.
 ///
 /// Active maps to `Primary`, inactive to `SecondaryContainer`,
 /// disabled uses on-surface with 0.38 and 0.12 opacity.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SliderColors {
+    /// Pill-shaped draggable handle fill color.
     pub thumb: Rgba,
+    /// Filled track portion between leading edge and current thumb position.
     pub active_track: Rgba,
+    /// Unfilled track portion between thumb position and trailing edge.
     pub inactive_track: Rgba,
+    /// Discrete indicator dots on the active track section.
     pub active_tick: Rgba,
+    /// Discrete indicator dots on the inactive track section.
     pub inactive_tick: Rgba,
+    /// Thumb fill color when the slider is disabled.
     pub disabled_thumb: Rgba,
+    /// Active track fill color when the slider is disabled.
     pub disabled_active_track: Rgba,
+    /// Inactive track fill color when the slider is disabled.
     pub disabled_inactive_track: Rgba,
 }
 
@@ -87,14 +94,29 @@ impl Default for SliderColors {
     }
 }
 
-/// Value model matching `SliderState`.
+/// Value range and stepping configuration for continuous or discrete sliders.
 ///
-/// `min..=max` is `valueRange`, `steps` is the count of intervals
-/// between ends. Zero means continuous.
+/// `min..=max` is the value range, `steps` is the count of intervals
+/// between ends. Zero means continuous floating point adjustment.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use gpui_material::slider::SliderSpec;
+///
+/// // Continuous slider range from 0.0 to 100.0:
+/// let continuous = SliderSpec::new(0.0, 100.0, 0);
+///
+/// // Discrete slider with 5 intervals (steps at 0, 25, 50, 75, 100):
+/// let discrete = SliderSpec::new(0.0, 100.0, 4);
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SliderSpec {
+    /// Lower bound of the interactive range.
     pub min: f32,
+    /// Upper bound of the interactive range.
     pub max: f32,
+    /// Number of discrete intervals between minimum and maximum, or zero for continuous.
     pub steps: u32,
 }
 

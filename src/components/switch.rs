@@ -50,19 +50,33 @@ impl Default for SwitchMetrics {
 /// Colors resolved from M3 palette tokens.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SwitchColors {
+    /// Pill track container background when checked (on).
     pub track_checked: Rgba,
+    /// Pill track container background when unchecked (off).
     pub track_unchecked: Rgba,
+    /// Floating circular thumb handle color when checked.
     pub thumb_checked: Rgba,
+    /// Floating circular thumb handle color when unchecked.
     pub thumb_unchecked: Rgba,
+    /// Hover and press state layer overlay tint when checked.
     pub state_layer_checked: Rgba,
+    /// Hover and press state layer overlay tint when unchecked.
     pub state_layer_unchecked: Rgba,
+    /// Stroke color for the checkmark icon when checked.
     pub icon_checked: Rgba,
+    /// Stroke color for the cross icon when unchecked.
     pub icon_unchecked: Rgba,
+    /// Track background color when checked and disabled.
     pub disabled_track_checked: Rgba,
+    /// Track background color when unchecked and disabled.
     pub disabled_track_unchecked: Rgba,
+    /// Thumb handle color when checked and disabled.
     pub disabled_thumb_checked: Rgba,
+    /// Thumb handle color when unchecked and disabled.
     pub disabled_thumb_unchecked: Rgba,
+    /// Icon stroke color when checked and disabled.
     pub disabled_icon_checked: Rgba,
+    /// Icon stroke color when unchecked and disabled.
     pub disabled_icon_unchecked: Rgba,
 }
 
@@ -129,9 +143,13 @@ impl Default for SwitchColors {
 /// A single line segment in a 16x16 icon coordinate space.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct IconSegment {
+    /// Beginning X coordinate in the local 16x16 icon viewport.
     pub start_x: f32,
+    /// Beginning Y coordinate in the local 16x16 icon viewport.
     pub start_y: f32,
+    /// Ending X coordinate in the local 16x16 icon viewport.
     pub end_x: f32,
+    /// Ending Y coordinate in the local 16x16 icon viewport.
     pub end_y: f32,
 }
 
@@ -245,15 +263,34 @@ pub fn draw_switch_icon(
 }
 
 /// State model for an animated switch.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use gpui_material::switch::SwitchModel;
+///
+/// let mut sw = SwitchModel::new("Dark mode", false);
+///
+/// // Toggle state on click
+/// sw.toggle();
+/// ```
 #[derive(Clone, Debug)]
 pub struct SwitchModel {
+    /// Descriptive label text displayed alongside the switch.
     pub label: String,
+    /// Whether the switch is currently toggled on.
     pub checked: bool,
+    /// Whether user interaction is enabled.
     pub enabled: bool,
+    /// Whether to render the morphing checkmark and cross icon lines.
     pub show_icons: bool,
+    /// Spring state tracking horizontal thumb travel progress from 0.0 to 1.0.
     pub display_pos: SpringState,
+    /// Spring state tracking thumb expansion progress on press from 0.0 to 1.0.
     pub press_pos: SpringState,
+    /// Whether the pointer is currently holding down on the switch.
     pub is_pressed: bool,
+    /// Whether the pointer is currently hovering over the switch.
     pub is_hovered: bool,
 }
 

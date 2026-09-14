@@ -1,13 +1,15 @@
+//! Interactive visual showcase demonstrating Material 3 Expressive components.
+
 use gpui::{
     App, Application, Bounds, Context, Pixels, Render, SharedString, Window, WindowBounds,
     WindowOptions, deferred, div, prelude::*, px, size,
 };
 use gpui_platform::application;
-use gpui_m3e::{
-    M3Palette, SliderSpec, SplitButtonModel, SplitButtonSize, SplitButtonVariant, SplitIconKind,
-    SpringParams, SpringState, SwitchColors, SwitchMetrics, SwitchModel, animated_icon_segments,
-    dark_scheme, draw_chevron_icon, draw_split_icon, draw_switch_icon, light_scheme, spring_step,
-    thumb_geometry,
+use gpui_material::{
+    ButtonModel, ButtonShape, ButtonSize, ButtonVariant, M3Palette, SliderSpec, SplitButtonModel,
+    SplitButtonSize, SplitButtonVariant, SplitIconKind, SpringParams, SpringState, SwitchColors,
+    SwitchMetrics, SwitchModel, animated_icon_segments, dark_scheme, draw_chevron_icon,
+    draw_split_icon, draw_switch_icon, light_scheme, spring_step, thumb_geometry,
 };
 
 const TRACK_W: f32 = 480.0;
@@ -85,6 +87,7 @@ struct Showcase {
     sliders: Vec<SliderModel>,
     switches: Vec<SwitchModel>,
     split_buttons: Vec<SplitButtonModel>,
+    buttons: Vec<ButtonModel>,
     dark_theme: bool,
 }
 
@@ -252,6 +255,51 @@ impl Showcase {
     fn select_split_menu_item(&mut self, ix: usize, item_ix: usize, cx: &mut Context<Self>) {
         self.split_buttons[ix].select_menu_item(item_ix);
         cx.notify();
+    }
+
+    fn press_button(&mut self, ix: usize, pressed: bool, cx: &mut Context<Self>) {
+        if !self.buttons[ix].enabled {
+            return;
+        }
+        self.buttons[ix].is_pressed = pressed;
+        cx.notify();
+    }
+
+    fn hover_button(&mut self, ix: usize, hovered: bool, cx: &mut Context<Self>) {
+        if !self.buttons[ix].enabled {
+            return;
+        }
+        self.buttons[ix].is_hovered = hovered;
+        cx.notify();
+    }
+
+    fn render_button(&self, ix: usize, pal: &M3Palette, cx: &mut Context<Self>) -> impl IntoElement {
+        let btn = &self.buttons[ix];
+        let rendered = btn.render(pal);
+        div()
+            .id(("m3-btn-wrap", ix))
+            .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
+                this.hover_button(ix, *hovered, cx);
+            }))
+            .on_mouse_down(
+                gpui::MouseButton::Left,
+                cx.listener(move |this, _, _, cx| {
+                    this.press_button(ix, true, cx);
+                }),
+            )
+            .on_mouse_up(
+                gpui::MouseButton::Left,
+                cx.listener(move |this, _, _, cx| {
+                    this.press_button(ix, false, cx);
+                }),
+            )
+            .on_mouse_up_out(
+                gpui::MouseButton::Left,
+                cx.listener(move |this, _, _, cx| {
+                    this.press_button(ix, false, cx);
+                }),
+            )
+            .child(rendered)
     }
 
     fn render_split_button(
@@ -618,6 +666,9 @@ impl Render for Showcase {
             sw.advance_springs(window, DT);
         }
         for btn in &mut self.split_buttons {
+            btn.advance_springs(window, DT);
+        }
+        for btn in &mut self.buttons {
             btn.advance_springs(window, DT);
         }
         let sw_colors = SwitchColors::from_palette(&pal, self.dark_theme);
@@ -1005,7 +1056,7 @@ impl Render for Showcase {
                         div()
                             .text_xs()
                             .text_color(pal.on_surface_variant)
-                            .child("Material 3 Expressive • 1:1 Tokens • Damped Spring Shape Morphing"),
+                            .child("Material 3 Expressive • Damped Spring Shape Morphing"),
                     ),
             )
             // 1. Emphasis Variants Card
@@ -1251,6 +1302,111 @@ impl Render for Showcase {
                             .child(self.render_split_button(8, &pal, cx)),
                     ),
             )
+            // -------------------------------------------------------------
+            // Section 4: M3 Expressive Buttons (with native GPUI with_spring)
+            // -------------------------------------------------------------
+            .child(
+                div()
+                    .flex_col()
+                    .gap_3()
+                    .p_6()
+                    .rounded_2xl()
+                    .bg(gpui::Rgba {
+                        a: if self.dark_theme { 0.08 } else { 0.04 },
+                        ..pal.on_surface
+                    })
+                    .child(
+                        div()
+                            .flex()
+                            .justify_between()
+                            .items_baseline()
+                            .child(
+                                div()
+                                    .text_base()
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .child("Buttons (Expressive with Native with_spring)"),
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(pal.on_surface_variant)
+                                    .child("Element-level spring corner morphing via gpui 0.3.4"),
+                            ),
+                    )
+                    // Row 1: Sizes (XS, Small, Medium, Large)
+                    .child(
+                        div()
+                            .flex_col()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(gpui::FontWeight::MEDIUM)
+                                    .text_color(pal.on_surface_variant)
+                                    .child("Sizes: Extra Small (32dp), Small (40dp), Medium (56dp), Large (96dp)"),
+                            )
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap_4()
+                                    .py_2()
+                                    .child(self.render_button(0, &pal, cx))
+                                    .child(self.render_button(1, &pal, cx))
+                                    .child(self.render_button(2, &pal, cx))
+                                    .child(self.render_button(3, &pal, cx)),
+                            ),
+                    )
+                    // Row 2: Variants (Filled, Tonal, Elevated, Outlined, Text)
+                    .child(
+                        div()
+                            .flex_col()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(gpui::FontWeight::MEDIUM)
+                                    .text_color(pal.on_surface_variant)
+                                    .child("Variants: Filled, Filled Tonal, Elevated, Outlined, Text"),
+                            )
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap_4()
+                                    .py_2()
+                                    .child(self.render_button(4, &pal, cx))
+                                    .child(self.render_button(5, &pal, cx))
+                                    .child(self.render_button(6, &pal, cx))
+                                    .child(self.render_button(7, &pal, cx))
+                                    .child(self.render_button(8, &pal, cx)),
+                            ),
+                    )
+                    // Row 3: Shapes (Round vs Square) & Disabled
+                    .child(
+                        div()
+                            .flex_col()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(gpui::FontWeight::MEDIUM)
+                                    .text_color(pal.on_surface_variant)
+                                    .child("Shapes (Round vs Square) & Disabled"),
+                            )
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap_4()
+                                    .py_2()
+                                    .child(self.render_button(9, &pal, cx))
+                                    .child(self.render_button(10, &pal, cx))
+                                    .child(self.render_button(11, &pal, cx))
+                                    .child(self.render_button(12, &pal, cx)),
+                            ),
+                    ),
+            )
     }
 }
 
@@ -1346,6 +1502,64 @@ fn main() {
                         SplitButtonModel::new("Disabled Outlined")
                             .variant(SplitButtonVariant::Outlined)
                             .size(SplitButtonSize::Small)
+                            .enabled(false),
+                    ],
+                    buttons: vec![
+                        // 0: Extra Small (32dp)
+                        ButtonModel::new(0, "XS Action")
+                            .size(ButtonSize::ExtraSmall)
+                            .variant(ButtonVariant::Filled),
+                        // 1: Small (40dp)
+                        ButtonModel::new(1, "Small Action")
+                            .size(ButtonSize::Small)
+                            .variant(ButtonVariant::Filled),
+                        // 2: Medium (56dp)
+                        ButtonModel::new(2, "Medium Action")
+                            .size(ButtonSize::Medium)
+                            .variant(ButtonVariant::Filled),
+                        // 3: Large (96dp)
+                        ButtonModel::new(3, "Large Action")
+                            .size(ButtonSize::Large)
+                            .variant(ButtonVariant::Filled),
+                        // 4: Filled Variant
+                        ButtonModel::new(4, "Filled")
+                            .size(ButtonSize::Small)
+                            .variant(ButtonVariant::Filled),
+                        // 5: Filled Tonal Variant
+                        ButtonModel::new(5, "Tonal")
+                            .size(ButtonSize::Small)
+                            .variant(ButtonVariant::FilledTonal),
+                        // 6: Elevated Variant
+                        ButtonModel::new(6, "Elevated")
+                            .size(ButtonSize::Small)
+                            .variant(ButtonVariant::Elevated),
+                        // 7: Outlined Variant
+                        ButtonModel::new(7, "Outlined")
+                            .size(ButtonSize::Small)
+                            .variant(ButtonVariant::Outlined),
+                        // 8: Text Variant
+                        ButtonModel::new(8, "Text")
+                            .size(ButtonSize::Small)
+                            .variant(ButtonVariant::Text),
+                        // 9: Square Medium
+                        ButtonModel::new(9, "Square Medium")
+                            .size(ButtonSize::Medium)
+                            .variant(ButtonVariant::FilledTonal)
+                            .shape(ButtonShape::Square),
+                        // 10: Square Small
+                        ButtonModel::new(10, "Square Small")
+                            .size(ButtonSize::Small)
+                            .variant(ButtonVariant::Outlined)
+                            .shape(ButtonShape::Square),
+                        // 11: Disabled Filled
+                        ButtonModel::new(11, "Disabled Filled")
+                            .size(ButtonSize::Small)
+                            .variant(ButtonVariant::Filled)
+                            .enabled(false),
+                        // 12: Disabled Outlined
+                        ButtonModel::new(12, "Disabled Outlined")
+                            .size(ButtonSize::Small)
+                            .variant(ButtonVariant::Outlined)
                             .enabled(false),
                     ],
                 })

@@ -1,9 +1,9 @@
 [package]
-name = "gpui-m3e"
+name = "gpui-material"
 version = "0.1.0"
 edition = "2024"
 description = "Material 3 Expressive components for GPUI Rust"
-license = "Apache-2.0"
+license = "MIT"
 repository = "https://github.com/KiteShell/gpui-material"
 keywords = ["gui", "material", "gpui", "m3e"]
 categories = ["gui"]
@@ -16,7 +16,15 @@ gpui = { package = "gpui-pre", version = "=0.3.4" }
 [dev-dependencies]
 # Platform entry point for the gallery example only.
 # Kept out of [dependencies] so library users never pull it.
-gpui_platform = { package = "gpui-pre-platform", version = "=0.3.4", features = ["wayland", "x11"] }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.4", features = ["wayland"] }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[lints.rust]
+missing_docs = "warn"
 
 [lints.clippy]
 correctness = "deny"
@@ -24,7 +32,6 @@ suspicious = "warn"
 style = "warn"
 complexity = "warn"
 perf = "warn"
-missing_docs = "warn"
 
 [profile.release]
 opt-level = 3

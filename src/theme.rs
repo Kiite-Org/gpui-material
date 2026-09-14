@@ -1,26 +1,37 @@
-//! M3E color tokens transcribed from `PaletteTokens.kt`,
-//! `ColorLightTokens.kt`, and `ColorDarkTokens.kt`.
+//! Material 3 Expressive color tokens and standard light and dark palettes.
 //!
-//! Values below are the baseline M3 palette, sRGB 0-255.
-//! Light primary is `Primary40`, dark primary is `Primary80`, and so on.
+//! Values below define baseline Material Design color roles in sRGB.
 
 use gpui::Rgba;
 
 /// Material 3 Expressive color scheme in GPUI rgba.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct M3Palette {
+    /// High-emphasis accent color for prominent interactive components and active tracks.
     pub primary: Rgba,
+    /// High-contrast content color drawn on top of [`Self::primary`].
     pub on_primary: Rgba,
+    /// Prominent container background with lower visual weight than primary.
     pub primary_container: Rgba,
+    /// Medium-emphasis container background for tonal buttons and inactive tracks.
     pub secondary_container: Rgba,
+    /// Contrast content color drawn on top of [`Self::secondary_container`].
     pub on_secondary_container: Rgba,
+    /// Base background color for screens, dialogs, and window surfaces.
     pub surface: Rgba,
+    /// High-emphasis text and icon foreground on [`Self::surface`].
     pub on_surface: Rgba,
+    /// Medium-emphasis secondary text, helper labels, and subtle icons on surface.
     pub on_surface_variant: Rgba,
+    /// Inverted background for floating popovers, tooltips, and snackbars.
     pub inverse_surface: Rgba,
+    /// High-contrast text on top of [`Self::inverse_surface`].
     pub inverse_on_surface: Rgba,
+    /// Distinct border and outline color for medium-low emphasis components.
     pub outline: Rgba,
+    /// Subtle decorative divider and separator line color.
     pub outline_variant: Rgba,
+    /// Highest-elevation container background for switches and elevated surfaces.
     pub surface_container_highest: Rgba,
 }
 

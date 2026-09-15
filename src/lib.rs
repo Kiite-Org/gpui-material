@@ -31,6 +31,7 @@
 //! ## Components
 //!
 //! - [`button`]: Five sizes, five emphasis styles, round/square shapes, spring corner morphing.
+//! - [`card`]: Filled, elevated, and outlined cards with spring corner morphing.
 //! - [`slider`]: Continuous and discrete sliders with stepped snap intervals.
 //! - [`split_button`]: Primary action button with a morphing contextual trailing button.
 //! - [`switch`]: Pill toggle with animated thumb expansion and morphing check/cross icons.
@@ -52,6 +53,7 @@ pub mod theme;
 
 // Top-level module exports
 pub use components::button;
+pub use components::card;
 pub use components::slider;
 pub use components::split_button;
 pub use components::switch;
@@ -60,6 +62,10 @@ pub use components::switch;
 #[doc(inline)]
 pub use components::button::{
     ButtonColors, ButtonMetrics, ButtonModel, ButtonShape, ButtonSize, ButtonVariant,
+};
+#[doc(inline)]
+pub use components::card::{
+    CardColors, CardMetrics, CardModel, CardVariant,
 };
 #[doc(inline)]
 pub use components::slider::{SliderColors, SliderMetrics, SliderSpec};
@@ -81,6 +87,7 @@ pub use theme::{M3Palette, dark_scheme, light_scheme};
 /// Convenient prelude module for importing common models, enums, and theme helpers.
 pub mod prelude {
     pub use crate::button::{ButtonModel, ButtonShape, ButtonSize, ButtonVariant};
+    pub use crate::card::{CardColors, CardMetrics, CardModel, CardVariant};
     pub use crate::motion::{SpringParams, SpringState};
     pub use crate::slider::{SliderColors, SliderMetrics, SliderSpec};
     pub use crate::split_button::{

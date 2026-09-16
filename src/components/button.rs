@@ -9,6 +9,7 @@ use gpui::{
     div, prelude::*, px,
 };
 
+use crate::components::icon::M3Icon;
 use crate::motion::{spring_step, SpringParams, SpringState};
 use crate::theme::M3Palette;
 
@@ -344,6 +345,10 @@ pub struct ButtonModel {
     pub custom_metrics: Option<ButtonMetrics>,
     /// Optional custom spring physics overriding default expressive spring.
     pub custom_spring: Option<SpringParams>,
+    /// Optional leading M3 vector icon.
+    pub icon: Option<M3Icon>,
+    /// Optional trailing M3 vector icon.
+    pub trailing_icon: Option<M3Icon>,
 }
 
 impl ButtonModel {
@@ -368,7 +373,23 @@ impl ButtonModel {
             custom_colors: None,
             custom_metrics: None,
             custom_spring: None,
+            icon: None,
+            trailing_icon: None,
         }
+    }
+
+    /// Sets an optional leading M3 vector icon for this button.
+    #[must_use]
+    pub fn icon(mut self, icon: M3Icon) -> Self {
+        self.icon = Some(icon);
+        self
+    }
+
+    /// Sets an optional trailing M3 vector icon for this button.
+    #[must_use]
+    pub fn trailing_icon(mut self, icon: M3Icon) -> Self {
+        self.trailing_icon = Some(icon);
+        self
     }
 
     /// Sets the button size.
@@ -543,12 +564,35 @@ impl ButtonModel {
             root = root.child(state_layer);
         }
 
-        // Label content
-        root.child(
-            div()
+        // Label and optional leading/trailing icon content
+        let has_leading = self.icon.is_some();
+        let has_trailing = self.trailing_icon.is_some();
+
+        if has_leading || has_trailing {
+            let mut content = div()
                 .relative()
-                .child(self.label.clone()),
-        )
+                .flex()
+                .items_center()
+                .gap(px(metrics.icon_label_space));
+
+            if let Some(leading) = self.icon {
+                content = content.child(leading.element(metrics.icon_size, fg));
+            }
+            if !self.label.is_empty() {
+                content = content.child(div().child(self.label.clone()));
+            }
+            if let Some(trailing) = self.trailing_icon {
+                content = content.child(trailing.element(metrics.icon_size, fg));
+            }
+
+            root.child(content)
+        } else {
+            root.child(
+                div()
+                    .relative()
+                    .child(self.label.clone()),
+            )
+        }
     }
 }
 

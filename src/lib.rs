@@ -32,6 +32,9 @@
 //!
 //! - [`button`]: Five sizes, five emphasis styles, round/square shapes, spring corner morphing.
 //! - [`card`]: Filled, elevated, and outlined cards with spring corner morphing.
+//! - [`icon`]: Material Symbols icons for menus and buttons.
+//! - [`menu`]: M3 Expressive menus with connected corner shaping, item pills, group gap separation, and nested submenus.
+//! - [`shape`]: 35 Material 3 Expressive shapes, point-sampled morphing, and harmonic spring bounce.
 //! - [`slider`]: Continuous and discrete sliders with stepped snap intervals.
 //! - [`split_button`]: Primary action button with a morphing contextual trailing button.
 //! - [`switch`]: Pill toggle with animated thumb expansion and morphing check/cross icons.
@@ -54,9 +57,12 @@ pub mod theme;
 // Top-level module exports
 pub use components::button;
 pub use components::card;
+pub use components::icon;
+pub use components::shape;
 pub use components::slider;
 pub use components::split_button;
 pub use components::switch;
+pub use components::menu;
 
 // Convenient root re-exports with inlined docs
 #[doc(inline)]
@@ -66,6 +72,18 @@ pub use components::button::{
 #[doc(inline)]
 pub use components::card::{
     CardColors, CardMetrics, CardModel, CardVariant,
+};
+#[doc(inline)]
+pub use components::icon::M3Icon;
+#[doc(inline)]
+pub use components::menu::{
+    MenuColors, MenuGroup, MenuItem, MenuItemTrailing, MenuMetrics, MenuModel, MenuVariant,
+};
+#[doc(inline)]
+pub use components::shape::{
+    MaterialShape, SHAPE_SAMPLE_COUNT, damping_from_ratio, draw_morph, draw_morph_points,
+    draw_morph_with_bounce, draw_points, draw_shape, draw_shape_morph_with_bounce,
+    lerp_and_rotate_points,
 };
 #[doc(inline)]
 pub use components::slider::{SliderColors, SliderMetrics, SliderSpec};
@@ -88,7 +106,12 @@ pub use theme::{M3Palette, dark_scheme, light_scheme};
 pub mod prelude {
     pub use crate::button::{ButtonModel, ButtonShape, ButtonSize, ButtonVariant};
     pub use crate::card::{CardColors, CardMetrics, CardModel, CardVariant};
+    pub use crate::icon::M3Icon;
+    pub use crate::menu::{
+        MenuColors, MenuGroup, MenuItem, MenuItemTrailing, MenuMetrics, MenuModel, MenuVariant,
+    };
     pub use crate::motion::{SpringParams, SpringState};
+    pub use crate::shape::MaterialShape;
     pub use crate::slider::{SliderColors, SliderMetrics, SliderSpec};
     pub use crate::split_button::{
         SplitButtonColors, SplitButtonMetrics, SplitButtonModel, SplitButtonSize, SplitButtonVariant,

@@ -73,23 +73,24 @@ pub fn light_scheme() -> M3Palette {
 ///
 /// Features radiant molten coral-rust primary (`#FA8559`), deep dark roast
 /// mahogany on-primary (`#541702`), burning copper container (`#99310D`),
-/// warm cedar secondary container (`#4E352C`), and warm obsidian surface (`#16110F`).
+/// sleek dark plum-charcoal secondary container (`#3A3036`), and deep neutral
+/// obsidian surface (`#121016`).
 #[must_use]
 pub fn dark_scheme() -> M3Palette {
     M3Palette {
         primary: srgb(250, 133, 89),
         on_primary: srgb(84, 23, 2),
         primary_container: srgb(153, 49, 13),
-        secondary_container: srgb(78, 53, 44),
-        on_secondary_container: srgb(254, 202, 145),
-        surface: srgb(22, 17, 15),
-        on_surface: srgb(245, 225, 212),
-        on_surface_variant: srgb(226, 203, 192),
-        inverse_surface: srgb(245, 225, 212),
-        inverse_on_surface: srgb(52, 42, 38),
-        outline: srgb(168, 136, 122),
-        outline_variant: srgb(78, 53, 44),
-        surface_container_highest: srgb(52, 40, 35),
+        secondary_container: srgb(58, 48, 54),
+        on_secondary_container: srgb(254, 219, 208),
+        surface: srgb(18, 16, 22),
+        on_surface: srgb(235, 230, 238),
+        on_surface_variant: srgb(200, 194, 204),
+        inverse_surface: srgb(235, 230, 238),
+        inverse_on_surface: srgb(48, 45, 54),
+        outline: srgb(145, 140, 150),
+        outline_variant: srgb(72, 68, 78),
+        surface_container_highest: srgb(40, 37, 46),
     }
 }
 

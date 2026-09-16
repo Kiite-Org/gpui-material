@@ -677,10 +677,8 @@ impl SplitButtonModel {
         // 5. Target for trailing state layer:
         let trailing_layer_target = if !self.enabled {
             0.0
-        } else if self.checked {
+        } else if self.checked || self.is_trailing_pressed {
             0.10 // TrailingButtonStateLayerAlpha
-        } else if self.is_trailing_pressed {
-            0.10
         } else if self.is_trailing_hovered {
             0.08
         } else {
@@ -708,7 +706,7 @@ impl SplitButtonModel {
         self.leading_width = spring_step(width_spring, self.leading_width, target_width, dt);
 
         // Check if any spring is still significantly moving:
-        let moving = (self.leading_corner.pos - leading_target).abs() > 0.05
+        (self.leading_corner.pos - leading_target).abs() > 0.05
             || self.leading_corner.vel.abs() > 0.1
             || (self.trailing_corner.pos - trailing_target).abs() > 0.05
             || self.trailing_corner.vel.abs() > 0.1
@@ -721,9 +719,7 @@ impl SplitButtonModel {
             || (self.menu_progress.pos - menu_target).abs() > 0.005
             || self.menu_progress.vel.abs() > 0.01
             || (self.leading_width.pos - target_width).abs() > 0.1
-            || self.leading_width.vel.abs() > 0.2;
-
-        moving
+            || self.leading_width.vel.abs() > 0.2
     }
 
     /// Advance spring animations by dt seconds, requesting an animation frame if unsettled.
@@ -741,10 +737,10 @@ impl SplitButtonModel {
         // If the menu was closed within the last 300ms by an outside click
         // (which includes clicking the trailing toggle button during Capture phase),
         // do not immediately re-open it.
-        if let Some(closed_at) = self.closed_at.take() {
-            if closed_at.elapsed().as_millis() < 300 {
-                return;
-            }
+        if let Some(closed_at) = self.closed_at.take()
+            && closed_at.elapsed().as_millis() < 300
+        {
+            return;
         }
         self.checked = !self.checked;
     }

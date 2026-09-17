@@ -362,7 +362,7 @@ impl Showcase {
                                             self.menus.standalone_menu.render_with_handlers(
                                                 pal,
                                                 cx,
-                                                |this, item_id, cx| {
+                                                |this, item_id, _window, cx| {
                                                     this.select_standalone_menu_item(item_id, cx);
                                                 },
                                             ),
@@ -465,7 +465,7 @@ impl Showcase {
                                             self.menus.split_menu.render_with_handlers(
                                                 pal,
                                                 cx,
-                                                |this, item_id, cx| {
+                                                |this, item_id, _window, cx| {
                                                     let label = this
                                                         .menus
                                                         .split_menu

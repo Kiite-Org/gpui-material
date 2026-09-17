@@ -70,6 +70,24 @@ pub enum M3Icon {
     ExpandMore,
     /// Upward expansion chevron (Material `expand_less`).
     ExpandLess,
+    /// Four-pointed diamond sparkle star (Material `spark` / Gemini symbol).
+    Spark,
+    /// RAM memory chip (Material `memory`).
+    Memory,
+    /// Processor / CPU load gauge (Material `planner_review` / `speed`).
+    Cpu,
+    /// Local Area Network / Ethernet tree (Material `lan`).
+    Lan,
+    /// Bluetooth symbol (Material `bluetooth`).
+    Bluetooth,
+    /// Microphone off / muted (Material `mic_off`).
+    MicOff,
+    /// Fullscreen toggle brackets (Material `fullscreen`).
+    Fullscreen,
+    /// Keyboard rectangle with keys (Material `keyboard`).
+    Keyboard,
+    /// Vinyl record / disc (Material `album`).
+    Album,
 }
 
 impl M3Icon {
@@ -641,6 +659,17 @@ impl M3Icon {
                     window.paint_path(path, color);
                 }
             }
+            M3Icon::Spark
+            | M3Icon::Memory
+            | M3Icon::Cpu
+            | M3Icon::Lan
+            | M3Icon::Bluetooth
+            | M3Icon::MicOff
+            | M3Icon::Fullscreen
+            | M3Icon::Keyboard
+            | M3Icon::Album => {
+                // Drawn via SVG element
+            }
         }
     }
 
@@ -689,6 +718,15 @@ impl M3Icon {
             M3Icon::Person => m3_svg!("M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"),
             M3Icon::ExpandMore => m3_svg!("M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"),
             M3Icon::ExpandLess => m3_svg!("M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"),
+            M3Icon::Spark => br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 381 381" width="24" height="24"><path fill="black" d="m 190.48 352.21 C 177.82 268.69 112.27 203.13 28.74 190.48 C 112.27 177.82 177.82 112.27 190.48 28.74 c 12.66 83.52 78.21 149.08 161.73 161.73 c -83.52 12.66 -149.08 78.21 -161.73 161.73 z"/></svg>"#,
+            M3Icon::Memory => m3_svg!("M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z"),
+            M3Icon::Cpu => m3_svg!("M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14h-2v-2h2v2zm0-4h-2V7h2v5z"),
+            M3Icon::Lan => m3_svg!("M13 22h8v-7h-3v-4h-4V7h2V2H8v5h2v4H6v4H3v7h8v-7H8v-2h8v2h-3v5zM10 4h4v1h-4V4zM5 17h4v3H5v-3zm10 0h4v3h-4v-3z"),
+            M3Icon::Bluetooth => m3_svg!("M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z"),
+            M3Icon::MicOff => m3_svg!("M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-1 .9-2.14.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"),
+            M3Icon::Fullscreen => m3_svg!("M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"),
+            M3Icon::Keyboard => m3_svg!("M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"),
+            M3Icon::Album => m3_svg!("M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"),
         }
     }
 
@@ -738,8 +776,17 @@ mod tests {
             M3Icon::Person,
             M3Icon::ExpandMore,
             M3Icon::ExpandLess,
+            M3Icon::Spark,
+            M3Icon::Memory,
+            M3Icon::Cpu,
+            M3Icon::Lan,
+            M3Icon::Bluetooth,
+            M3Icon::MicOff,
+            M3Icon::Fullscreen,
+            M3Icon::Keyboard,
+            M3Icon::Album,
         ];
-        assert_eq!(icons.len(), 30);
+        assert_eq!(icons.len(), 39);
         for (i, a) in icons.iter().enumerate() {
             for (j, b) in icons.iter().enumerate() {
                 if i == j {
@@ -784,13 +831,22 @@ mod tests {
             M3Icon::Person,
             M3Icon::ExpandMore,
             M3Icon::ExpandLess,
+            M3Icon::Spark,
+            M3Icon::Memory,
+            M3Icon::Cpu,
+            M3Icon::Lan,
+            M3Icon::Bluetooth,
+            M3Icon::MicOff,
+            M3Icon::Fullscreen,
+            M3Icon::Keyboard,
+            M3Icon::Album,
         ];
         for icon in icons {
             let bytes = icon.svg_bytes();
             assert!(bytes.starts_with(b"<svg"));
             assert!(bytes.ends_with(b"</svg>"));
             let text = std::str::from_utf8(bytes).expect("valid utf8 svg");
-            assert!(text.contains("viewBox=\"0 0 24 24\""));
+            assert!(text.contains("viewBox="));
             assert!(text.contains("<path fill=\"black\" d=\""));
         }
     }

@@ -7,12 +7,35 @@
 //! transitions, and spring state layers on items.
 
 use gpui::{
-    div, prelude::*, px, IntoElement, ParentElement, Rgba, SharedString, Styled, Window,
+    div, prelude::*, px, AnyElement, ParentElement, Rgba, SharedString, Styled, Window,
 };
 
 use crate::components::icon::M3Icon;
 use crate::motion::{spring_step, SpringParams, SpringState};
 use crate::theme::M3Palette;
+
+/// A clonable closure that constructs a GPUI element.
+#[derive(Clone)]
+pub struct ElementBuilder(pub std::rc::Rc<dyn Fn() -> AnyElement>);
+
+impl std::fmt::Debug for ElementBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ElementBuilder(..)")
+    }
+}
+
+impl ElementBuilder {
+    /// Wraps a closure returning an element.
+    pub fn new(f: impl Fn() -> AnyElement + 'static) -> Self {
+        Self(std::rc::Rc::new(f))
+    }
+
+    /// Constructs the element.
+    #[must_use]
+    pub fn build(&self) -> AnyElement {
+        (self.0)()
+    }
+}
 
 /// Trailing content type for a menu item.
 #[derive(Clone, Debug, PartialEq)]
@@ -45,8 +68,12 @@ pub struct MenuItem {
     pub supporting_text: Option<SharedString>,
     /// Optional leading vector icon.
     pub leading_icon: Option<M3Icon>,
+    /// Optional custom leading element builder.
+    pub custom_leading: Option<ElementBuilder>,
     /// Optional trailing content.
     pub trailing: MenuItemTrailing,
+    /// Optional custom trailing element builder.
+    pub custom_trailing: Option<ElementBuilder>,
     /// Whether the item is interactive.
     pub enabled: bool,
     /// Whether the item is actively selected (highlighted with pill background).
@@ -68,7 +95,9 @@ impl MenuItem {
             label: label.into(),
             supporting_text: None,
             leading_icon: None,
+            custom_leading: None,
             trailing: MenuItemTrailing::None,
+            custom_trailing: None,
             enabled: true,
             selected: false,
             is_hovered: false,
@@ -91,10 +120,24 @@ impl MenuItem {
         self
     }
 
+    /// Sets a custom leading element builder.
+    #[must_use]
+    pub fn custom_leading(mut self, builder: impl Fn() -> AnyElement + 'static) -> Self {
+        self.custom_leading = Some(ElementBuilder::new(builder));
+        self
+    }
+
     /// Sets trailing content.
     #[must_use]
     pub fn trailing(mut self, trailing: MenuItemTrailing) -> Self {
         self.trailing = trailing;
+        self
+    }
+
+    /// Sets a custom trailing element builder.
+    #[must_use]
+    pub fn custom_trailing(mut self, builder: impl Fn() -> AnyElement + 'static) -> Self {
+        self.custom_trailing = Some(ElementBuilder::new(builder));
         self
     }
 
@@ -168,6 +211,8 @@ impl MenuItem {
 pub struct MenuGroup {
     /// Optional header label at the top of the group (callout 9).
     pub header: Option<SharedString>,
+    /// Optional custom header element builder at the top of the group.
+    pub custom_header: Option<ElementBuilder>,
     /// Items belonging to this group.
     pub items: Vec<MenuItem>,
 }
@@ -178,6 +223,7 @@ impl MenuGroup {
     pub fn new() -> Self {
         Self {
             header: None,
+            custom_header: None,
             items: Vec::new(),
         }
     }
@@ -186,6 +232,13 @@ impl MenuGroup {
     #[must_use]
     pub fn header(mut self, header: impl Into<SharedString>) -> Self {
         self.header = Some(header.into());
+        self
+    }
+
+    /// Sets a custom header element builder for this group.
+    #[must_use]
+    pub fn custom_header(mut self, builder: impl Fn() -> AnyElement + 'static) -> Self {
+        self.custom_header = Some(ElementBuilder::new(builder));
         self
     }
 
@@ -568,7 +621,7 @@ impl MenuModel {
     }
 
     /// Renders the menu as a GPUI element hierarchy according to variant, colors, and metrics.
-    pub fn render(&self, pal: &M3Palette) -> impl IntoElement {
+    pub fn render(&self, pal: &M3Palette) -> gpui::Div {
         let metrics = self.custom_metrics.unwrap_or_default();
         let colors = self.custom_colors.unwrap_or_else(|| MenuColors::for_palette(pal));
 
@@ -628,8 +681,8 @@ impl MenuModel {
         &self,
         pal: &M3Palette,
         cx: &Context<V>,
-        on_click: impl Fn(&mut V, usize, &mut Context<V>) + 'static + Copy,
-    ) -> impl IntoElement {
+        on_click: impl Fn(&mut V, usize, &mut Window, &mut Context<V>) + 'static + Clone,
+    ) -> gpui::Div {
         let metrics = self.custom_metrics.unwrap_or_default();
         let colors = self.custom_colors.unwrap_or_else(|| MenuColors::for_palette(pal));
 
@@ -662,7 +715,7 @@ impl MenuModel {
                         .rounded_bl(px(bl))
                         .p(px(metrics.container_padding_y))
                         .shadow_md()
-                        .child(self.render_group_with_handlers(group, &metrics, &colors, cx, on_click));
+                        .child(self.render_group_with_handlers(group, &metrics, &colors, cx, on_click.clone()));
                     container = container.child(card);
                 }
                 container
@@ -686,7 +739,7 @@ impl MenuModel {
                                 .bg(colors.divider),
                         );
                     }
-                    card = card.child(self.render_group_with_handlers(group, &metrics, &colors, cx, on_click));
+                    card = card.child(self.render_group_with_handlers(group, &metrics, &colors, cx, on_click.clone()));
                 }
                 root.child(card)
             }
@@ -699,11 +752,13 @@ impl MenuModel {
         metrics: &MenuMetrics,
         colors: &MenuColors,
         cx: &Context<V>,
-        on_click: impl Fn(&mut V, usize, &mut Context<V>) + 'static + Copy,
-    ) -> impl IntoElement {
+        on_click: impl Fn(&mut V, usize, &mut Window, &mut Context<V>) + 'static + Clone,
+    ) -> gpui::Div {
         let mut col = div().flex().flex_col().gap_0p5();
 
-        if let Some(ref header) = group.header {
+        if let Some(ref custom_header) = group.custom_header {
+            col = col.child(custom_header.build());
+        } else if let Some(ref header) = group.header {
             col = col.child(
                 div()
                     .px(px(metrics.item_padding_x))
@@ -718,17 +773,19 @@ impl MenuModel {
         for item in &group.items {
             let item_id = item.id;
             let item_element = self.render_item(item, metrics, colors);
-            let interactive_item = div()
-                .id(("m3-menu-item-wrap", item_id))
-                .cursor_pointer()
-                .on_mouse_down(
-                    gpui::MouseButton::Left,
-                    cx.listener(move |this, _, _, cx| {
-                        on_click(this, item_id, cx);
-                    }),
-                )
-                .child(item_element);
-            col = col.child(interactive_item);
+            let mut interactive_item = div().id(("m3-menu-item-wrap", item_id));
+            if item.enabled {
+                let on_click = on_click.clone();
+                interactive_item = interactive_item
+                    .cursor_pointer()
+                    .on_mouse_down(
+                        gpui::MouseButton::Left,
+                        cx.listener(move |this, _, window, cx| {
+                            on_click(this, item_id, window, cx);
+                        }),
+                    );
+            }
+            col = col.child(interactive_item.child(item_element));
         }
 
         col
@@ -743,7 +800,7 @@ impl MenuModel {
         metrics: &MenuMetrics,
         colors: &MenuColors,
         pal: &M3Palette,
-    ) -> impl IntoElement {
+    ) -> gpui::Div {
         let (tl, tr, br, bl) = Self::group_card_radii(ix, total, metrics);
         div()
             .flex()
@@ -765,11 +822,12 @@ impl MenuModel {
         metrics: &MenuMetrics,
         colors: &MenuColors,
         _pal: &M3Palette,
-    ) -> impl IntoElement {
+    ) -> gpui::Div {
         let mut col = div().flex().flex_col().gap_0p5();
 
-        // Optional section header (callout 9)
-        if let Some(ref header) = group.header {
+        if let Some(ref custom_header) = group.custom_header {
+            col = col.child(custom_header.build());
+        } else if let Some(ref header) = group.header {
             col = col.child(
                 div()
                     .px(px(metrics.item_padding_x))
@@ -795,7 +853,7 @@ impl MenuModel {
         item: &MenuItem,
         metrics: &MenuMetrics,
         colors: &MenuColors,
-    ) -> impl IntoElement {
+    ) -> gpui::Stateful<gpui::Div> {
         let is_two_line = item.supporting_text.is_some();
         let min_h = if is_two_line {
             metrics.item_height_double
@@ -834,25 +892,28 @@ impl MenuModel {
             .py(px(metrics.item_padding_y))
             .rounded(px(metrics.item_corner))
             .bg(bg_color)
-            .cursor_pointer()
-            .when(!item.selected, |d| {
-                d.hover(|h| {
-                    h.bg(Rgba {
-                        a: 0.12,
-                        ..colors.state_layer
+            .when(item.enabled, |d| {
+                d.cursor_pointer()
+                    .when(!item.selected, |d| {
+                        d.hover(|h| {
+                            h.bg(Rgba {
+                                a: 0.12,
+                                ..colors.state_layer
+                            })
+                        })
                     })
-                })
+                    .active(|a| {
+                        a.bg(Rgba {
+                            a: 0.22,
+                            ..colors.state_layer
+                        })
+                    })
             })
-            .active(|a| {
-                a.bg(Rgba {
-                    a: 0.22,
-                    ..colors.state_layer
-                })
-            });
+            .when(!item.enabled, |d| d.opacity(0.38));
 
         // State layer overlay (spring-animated hover / press)
         let layer_alpha = item.state_layer.pos.clamp(0.0, 1.0);
-        if layer_alpha > 0.001 {
+        if item.enabled && layer_alpha > 0.001 {
             row = row.child(
                 div()
                     .id(("m3-menu-item-layer", item.id))
@@ -864,14 +925,16 @@ impl MenuModel {
             );
         }
 
-        // Left side: leading icon + label + optional supporting text
+        // Left side: custom leading or leading icon + label + optional supporting text
         let mut left = div()
             .relative()
             .flex()
             .items_center()
             .gap(px(metrics.icon_label_space));
 
-        if let Some(icon) = item.leading_icon {
+        if let Some(ref custom_leading) = item.custom_leading {
+            left = left.child(custom_leading.build());
+        } else if let Some(icon) = item.leading_icon {
             left = left.child(icon.element(metrics.icon_size, icon_color));
         }
 
@@ -904,43 +967,47 @@ impl MenuModel {
             );
         }
 
-        // Right side: trailing content
-        let right = match &item.trailing {
-            MenuItemTrailing::None => div(),
-            MenuItemTrailing::Icon(icon) => {
-                div().child(icon.element(metrics.icon_size, trailing_color))
-            }
-            MenuItemTrailing::Shortcut(shortcut) => div()
-                .text_size(px(metrics.shortcut_font_size))
-                .font_weight(gpui::FontWeight::NORMAL)
-                .text_color(trailing_color)
-                .child(*shortcut),
-            MenuItemTrailing::Chevron => div().child(
-                M3Icon::ChevronRight.element(16.0, trailing_color),
-            ),
-            MenuItemTrailing::Badge { text, has_arrow } => {
-                let mut badge_box = div()
-                    .flex()
-                    .items_center()
-                    .gap_1()
-                    .child(
-                        div()
-                            .px_2()
-                            .py_0p5()
-                            .rounded_full()
-                            .bg(colors.badge_container)
-                            .text_size(px(10.0))
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .text_color(colors.badge_text)
-                            .child(*text),
-                    );
-
-                if *has_arrow {
-                    badge_box = badge_box.child(
-                        M3Icon::ChevronRight.element(14.0, trailing_color),
-                    );
+        // Right side: custom trailing or standard trailing content
+        let right = if let Some(ref custom_trailing) = item.custom_trailing {
+            div().child(custom_trailing.build())
+        } else {
+            match &item.trailing {
+                MenuItemTrailing::None => div(),
+                MenuItemTrailing::Icon(icon) => {
+                    div().child(icon.element(metrics.icon_size, trailing_color))
                 }
-                badge_box
+                MenuItemTrailing::Shortcut(shortcut) => div()
+                    .text_size(px(metrics.shortcut_font_size))
+                    .font_weight(gpui::FontWeight::NORMAL)
+                    .text_color(trailing_color)
+                    .child(*shortcut),
+                MenuItemTrailing::Chevron => div().child(
+                    M3Icon::ChevronRight.element(16.0, trailing_color),
+                ),
+                MenuItemTrailing::Badge { text, has_arrow } => {
+                    let mut badge_box = div()
+                        .flex()
+                        .items_center()
+                        .gap_1()
+                        .child(
+                            div()
+                                .px_2()
+                                .py_0p5()
+                                .rounded_full()
+                                .bg(colors.badge_container)
+                                .text_size(px(10.0))
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .text_color(colors.badge_text)
+                                .child(*text),
+                        );
+
+                    if *has_arrow {
+                        badge_box = badge_box.child(
+                            M3Icon::ChevronRight.element(14.0, trailing_color),
+                        );
+                    }
+                    badge_box
+                }
             }
         };
 

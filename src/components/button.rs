@@ -5,7 +5,7 @@
 //! and spring corner morphing with state layer animations.
 
 use gpui::{
-    IntoElement, ParentElement, Rgba, SharedString, Styled, Window,
+    ParentElement, Rgba, SharedString, Styled, Window,
     div, prelude::*, px,
 };
 
@@ -499,7 +499,7 @@ impl ButtonModel {
     }
 
     /// Renders the button as a GPUI element with animated state layer and corner morphing.
-    pub fn render(&self, pal: &M3Palette) -> impl IntoElement {
+    pub fn render(&self, pal: &M3Palette) -> gpui::Stateful<gpui::Div> {
         let metrics = self.custom_metrics.unwrap_or_else(|| ButtonMetrics::for_size(self.size));
         let colors = self.custom_colors.unwrap_or_else(|| ButtonColors::for_variant(self.variant, pal));
 

@@ -56,6 +56,8 @@ pub struct CardMetrics {
     pub subhead_size: f32,
     /// Body typography font size.
     pub body_size: f32,
+    /// Optional custom asymmetrical corner radii (top-left, top-right, bottom-left, bottom-right).
+    pub custom_corners: Option<(f32, f32, f32, f32)>,
 }
 
 impl Default for CardMetrics {
@@ -71,6 +73,7 @@ impl Default for CardMetrics {
             title_size: 16.0,
             subhead_size: 13.0,
             body_size: 14.0,
+            custom_corners: None,
         }
     }
 }
@@ -245,6 +248,12 @@ pub struct CardModel {
     pub custom_colors: Option<CardColors>,
     /// Optional spring physics override.
     pub custom_spring: Option<SpringParams>,
+    /// Whether the card container should stretch to fill available width.
+    pub full_width: bool,
+    /// Whether the card container should stretch to fill available size.
+    pub full_size: bool,
+    /// Optional override for container shadow.
+    pub shadow_override: Option<bool>,
 }
 
 impl CardModel {
@@ -272,6 +281,9 @@ impl CardModel {
             custom_metrics: None,
             custom_colors: None,
             custom_spring: None,
+            full_width: false,
+            full_size: false,
+            shadow_override: None,
         }
     }
 
@@ -332,6 +344,15 @@ impl CardModel {
         self
     }
 
+    /// Sets asymmetrical corner radii (top-left, top-right, bottom-left, bottom-right).
+    #[must_use]
+    pub fn corners(mut self, tl: f32, tr: f32, bl: f32, br: f32) -> Self {
+        let mut m = self.custom_metrics.unwrap_or_default();
+        m.custom_corners = Some((tl, tr, bl, br));
+        self.custom_metrics = Some(m);
+        self
+    }
+
     /// Sets custom color overrides.
     #[must_use]
     pub fn with_colors(mut self, colors: CardColors) -> Self {
@@ -343,6 +364,27 @@ impl CardModel {
     #[must_use]
     pub fn with_spring_params(mut self, spring: SpringParams) -> Self {
         self.custom_spring = Some(spring);
+        self
+    }
+
+    /// Configures the card container to stretch to 100% of the parent width.
+    #[must_use]
+    pub fn full_width(mut self, full_width: bool) -> Self {
+        self.full_width = full_width;
+        self
+    }
+
+    /// Configures the card container to stretch to 100% of both parent width and height.
+    #[must_use]
+    pub fn full_size(mut self, full_size: bool) -> Self {
+        self.full_size = full_size;
+        self
+    }
+
+    /// Explicitly enables or disables the card elevation shadow.
+    #[must_use]
+    pub fn shadow(mut self, shadow: bool) -> Self {
+        self.shadow_override = Some(shadow);
         self
     }
 
@@ -411,7 +453,7 @@ impl CardModel {
     }
 
     /// Renders the card container wrapping arbitrary custom child content.
-    pub fn render_with<C>(&self, pal: &M3Palette, content: C) -> impl IntoElement
+    pub fn render_with<C>(&self, pal: &M3Palette, content: C) -> gpui::Stateful<gpui::Div>
     where
         C: IntoElement,
     {
@@ -440,15 +482,18 @@ impl CardModel {
             0.0
         };
 
+        let has_shadow = self.shadow_override.unwrap_or(colors.has_shadow);
+
         let mut root = div()
             .id(("m3-card", self.id))
             .relative()
             .overflow_hidden()
-            .rounded(px(active_corner))
             .bg(bg)
             .text_color(fg)
+            .when(self.full_width, |d| d.w_full())
+            .when(self.full_size, |d| d.size_full())
             .when(self.interactive && self.enabled, |d| d.cursor_pointer())
-            .when(colors.has_shadow && self.enabled, |d| {
+            .when(has_shadow && self.enabled, |d| {
                 if self.is_hovered && self.interactive {
                     d.shadow_md()
                 } else {
@@ -463,19 +508,36 @@ impl CardModel {
                 }
             });
 
+        if let Some((tl, tr, bl, br)) = metrics.custom_corners {
+            root = root
+                .rounded_tl(px(tl))
+                .rounded_tr(px(tr))
+                .rounded_bl(px(bl))
+                .rounded_br(px(br));
+        } else {
+            root = root.rounded(px(active_corner));
+        }
+
         // Interactive state layer overlay
         if self.interactive && self.enabled && self.state_layer.pos > 0.001 {
             let overlay_color = Rgba {
                 a: self.state_layer.pos.clamp(0.0, 1.0),
                 ..colors.state_layer
             };
-            root = root.child(
-                div()
-                    .absolute()
-                    .inset_0()
-                    .rounded(px(active_corner))
-                    .bg(overlay_color),
-            );
+            let mut layer = div()
+                .absolute()
+                .inset_0()
+                .bg(overlay_color);
+            if let Some((tl, tr, bl, br)) = metrics.custom_corners {
+                layer = layer
+                    .rounded_tl(px(tl))
+                    .rounded_tr(px(tr))
+                    .rounded_bl(px(bl))
+                    .rounded_br(px(br));
+            } else {
+                layer = layer.rounded(px(active_corner));
+            }
+            root = root.child(layer);
         }
 
         // Inner content container
@@ -624,7 +686,7 @@ impl CardModel {
     }
 
     /// Renders the card using its built-in slots (media, title, subhead, body).
-    pub fn render(&self, pal: &M3Palette) -> impl IntoElement {
+    pub fn render(&self, pal: &M3Palette) -> gpui::Stateful<gpui::Div> {
         let content = self.render_content(pal);
         self.render_with(pal, content)
     }

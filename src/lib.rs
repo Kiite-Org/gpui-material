@@ -55,8 +55,11 @@ pub mod motion;
 pub mod theme;
 
 // Top-level module exports
+pub use components::badge;
 pub use components::button;
 pub use components::card;
+pub use components::chip;
+pub use components::divider;
 pub use components::icon;
 pub use components::shape;
 pub use components::slider;
@@ -66,6 +69,8 @@ pub use components::menu;
 
 // Convenient root re-exports with inlined docs
 #[doc(inline)]
+pub use components::badge::{BadgeModel, BadgeSize};
+#[doc(inline)]
 pub use components::button::{
     ButtonColors, ButtonMetrics, ButtonModel, ButtonShape, ButtonSize, ButtonVariant,
 };
@@ -73,6 +78,10 @@ pub use components::button::{
 pub use components::card::{
     CardColors, CardMetrics, CardModel, CardVariant,
 };
+#[doc(inline)]
+pub use components::chip::{ChipElevation, ChipModel, ChipVariant};
+#[doc(inline)]
+pub use components::divider::{DividerInset, DividerModel, DividerOrientation};
 #[doc(inline)]
 pub use components::icon::M3Icon;
 #[doc(inline)]
@@ -104,8 +113,11 @@ pub use theme::{M3Palette, dark_scheme, light_scheme};
 
 /// Convenient prelude module for importing common models, enums, and theme helpers.
 pub mod prelude {
+    pub use crate::badge::{BadgeModel, BadgeSize};
     pub use crate::button::{ButtonModel, ButtonShape, ButtonSize, ButtonVariant};
     pub use crate::card::{CardColors, CardMetrics, CardModel, CardVariant};
+    pub use crate::chip::{ChipElevation, ChipModel, ChipVariant};
+    pub use crate::divider::{DividerInset, DividerModel, DividerOrientation};
     pub use crate::icon::M3Icon;
     pub use crate::menu::{
         MenuColors, MenuGroup, MenuItem, MenuItemTrailing, MenuMetrics, MenuModel, MenuVariant,

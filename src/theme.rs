@@ -31,6 +31,14 @@ pub struct M3Palette {
     pub outline: Rgba,
     /// Subtle decorative divider and separator line color.
     pub outline_variant: Rgba,
+    /// Lowest-elevation container background for ambient canvas and subtle surfaces.
+    pub surface_container_lowest: Rgba,
+    /// Low-elevation container background.
+    pub surface_container_low: Rgba,
+    /// Standard container background for cards, bars, and panels.
+    pub surface_container: Rgba,
+    /// High-elevation container background.
+    pub surface_container_high: Rgba,
     /// Highest-elevation container background for switches and elevated surfaces.
     pub surface_container_highest: Rgba,
 }
@@ -65,6 +73,10 @@ pub fn light_scheme() -> M3Palette {
         inverse_on_surface: srgb(254, 243, 237),
         outline: srgb(154, 126, 114),
         outline_variant: srgb(226, 203, 192),
+        surface_container_lowest: srgb(255, 255, 255),
+        surface_container_low: srgb(254, 246, 240),
+        surface_container: srgb(249, 239, 232),
+        surface_container_high: srgb(244, 233, 226),
         surface_container_highest: srgb(245, 225, 212),
     }
 }
@@ -90,6 +102,10 @@ pub fn dark_scheme() -> M3Palette {
         inverse_on_surface: srgb(48, 45, 54),
         outline: srgb(145, 140, 150),
         outline_variant: srgb(72, 68, 78),
+        surface_container_lowest: srgb(13, 11, 16),
+        surface_container_low: srgb(26, 24, 30),
+        surface_container: srgb(32, 29, 36),
+        surface_container_high: srgb(36, 33, 41),
         surface_container_highest: srgb(40, 37, 46),
     }
 }

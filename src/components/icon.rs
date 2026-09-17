@@ -4,7 +4,7 @@
 //! drawn with zero raster assets using GPUI [`PathBuilder`].
 
 use gpui::{
-    Bounds, IntoElement, PathBuilder, Pixels, Rgba, Styled, Window, point, px, svg,
+    Bounds, PathBuilder, Pixels, Rgba, Styled, Window, point, px, svg,
 };
 
 /// Material 3 Expressive icon identifiers.
@@ -30,6 +30,8 @@ pub enum M3Icon {
     ArrowForward,
     /// Triangle media action (Material `play_arrow`).
     Play,
+    /// Double vertical bars media action (Material `pause`).
+    Pause,
     /// Tray and arrow down (Material `download`).
     Download,
     /// Plus symbol (Material `add`).
@@ -70,6 +72,36 @@ pub enum M3Icon {
     ExpandMore,
     /// Upward expansion chevron (Material `expand_less`).
     ExpandLess,
+    /// Close cross symbol (Material `close`).
+    Close,
+    /// Left chevron navigation pointer (Material `chevron_left`).
+    ChevronLeft,
+    /// Push pin symbol (Material `push_pin`).
+    PushPin,
+    /// Unpin / slashed pin symbol (Material `pin_off`).
+    PinOff,
+    /// Open in new window / external arrow (Material `open_in_new`).
+    OpenInNew,
+    /// Downward chevron navigation pointer (Material `keyboard_arrow_down`).
+    ChevronDown,
+    /// Upward chevron navigation pointer (Material `keyboard_arrow_up`).
+    ChevronUp,
+    /// Minus horizontal dash line (Material `remove`).
+    Remove,
+    /// Musical note glyph (Material `music_note`).
+    MusicNote,
+    /// 3x3 grid of dots for app launcher (Material `apps`).
+    Apps,
+    /// Calculator icon (Material `calculate`).
+    Calculate,
+    /// Globe / public web icon (Material `public`).
+    Public,
+    /// Search magnifying glass (Material `search`).
+    Search,
+    /// Volume speaker with sound waves (Material `volume_up`).
+    VolumeUp,
+    /// Muted speaker (Material `volume_off`).
+    VolumeOff,
 }
 
 impl M3Icon {
@@ -284,6 +316,23 @@ impl M3Icon {
                 b.move_to(pt(0.30, 0.22));
                 b.line_to(pt(0.80, 0.50));
                 b.line_to(pt(0.30, 0.78));
+                b.close();
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::Pause => {
+                // Material 'pause' (filled)
+                let mut b = PathBuilder::fill();
+                b.move_to(pt(0.24, 0.20));
+                b.line_to(pt(0.42, 0.20));
+                b.line_to(pt(0.42, 0.80));
+                b.line_to(pt(0.24, 0.80));
+                b.close();
+                b.move_to(pt(0.58, 0.20));
+                b.line_to(pt(0.76, 0.20));
+                b.line_to(pt(0.76, 0.80));
+                b.line_to(pt(0.58, 0.80));
                 b.close();
                 if let Ok(path) = b.build() {
                     window.paint_path(path, color);
@@ -641,6 +690,238 @@ impl M3Icon {
                     window.paint_path(path, color);
                 }
             }
+            M3Icon::Close => {
+                // Cross 'x' (Material 'close')
+                let mut b = PathBuilder::stroke(px(stroke_w));
+                b.move_to(pt(0.26, 0.26));
+                b.line_to(pt(0.74, 0.74));
+                b.move_to(pt(0.74, 0.26));
+                b.line_to(pt(0.26, 0.74));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::ChevronLeft => {
+                // Leftward navigation chevron '<'
+                let mut b = PathBuilder::stroke(px(stroke_w));
+                b.move_to(pt(0.62, 0.26));
+                b.line_to(pt(0.38, 0.50));
+                b.line_to(pt(0.62, 0.74));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::PushPin => {
+                // Push pin (Material 'push_pin')
+                let mut b = PathBuilder::stroke(px(stroke_w));
+                b.move_to(pt(0.32, 0.18));
+                b.line_to(pt(0.68, 0.18));
+                b.move_to(pt(0.38, 0.18));
+                b.line_to(pt(0.38, 0.44));
+                b.line_to(pt(0.26, 0.56));
+                b.line_to(pt(0.74, 0.56));
+                b.line_to(pt(0.62, 0.44));
+                b.line_to(pt(0.62, 0.18));
+                b.move_to(pt(0.50, 0.56));
+                b.line_to(pt(0.50, 0.84));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::PinOff => {
+                // Slashed push pin (Material 'pin_off')
+                let mut b = PathBuilder::stroke(px(stroke_w));
+                b.move_to(pt(0.20, 0.20));
+                b.line_to(pt(0.80, 0.80));
+                b.move_to(pt(0.42, 0.18));
+                b.line_to(pt(0.68, 0.18));
+                b.line_to(pt(0.62, 0.44));
+                b.line_to(pt(0.74, 0.56));
+                b.move_to(pt(0.50, 0.56));
+                b.line_to(pt(0.50, 0.84));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::OpenInNew => {
+                // External link / new window (Material 'open_in_new')
+                let mut b = PathBuilder::stroke(px(stroke_w));
+                b.move_to(pt(0.48, 0.22));
+                b.line_to(pt(0.22, 0.22));
+                b.line_to(pt(0.22, 0.78));
+                b.line_to(pt(0.78, 0.78));
+                b.line_to(pt(0.78, 0.52));
+                b.move_to(pt(0.45, 0.55));
+                b.line_to(pt(0.78, 0.22));
+                b.move_to(pt(0.58, 0.22));
+                b.line_to(pt(0.78, 0.22));
+                b.line_to(pt(0.78, 0.42));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::ChevronDown => {
+                // Downward chevron navigation pointer (Material 'keyboard_arrow_down')
+                let mut b = PathBuilder::stroke(px(stroke_w));
+                b.move_to(pt(0.26, 0.38));
+                b.line_to(pt(0.50, 0.62));
+                b.line_to(pt(0.74, 0.38));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::ChevronUp => {
+                // Upward chevron navigation pointer (Material 'keyboard_arrow_up')
+                let mut b = PathBuilder::stroke(px(stroke_w));
+                b.move_to(pt(0.26, 0.62));
+                b.line_to(pt(0.50, 0.38));
+                b.line_to(pt(0.74, 0.62));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::Remove => {
+                // Horizontal dash minus (Material 'remove')
+                let mut b = PathBuilder::stroke(px(stroke_w));
+                b.move_to(pt(0.20, 0.50));
+                b.line_to(pt(0.80, 0.50));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::MusicNote => {
+                // Musical note glyph (Material 'music_note')
+                let mut b = PathBuilder::fill();
+                b.move_to(pt(0.50, 0.16));
+                b.line_to(pt(0.74, 0.16));
+                b.line_to(pt(0.74, 0.36));
+                b.line_to(pt(0.56, 0.36));
+                b.line_to(pt(0.56, 0.60));
+                b.line_to(pt(0.42, 0.60));
+                b.line_to(pt(0.30, 0.72));
+                b.line_to(pt(0.42, 0.84));
+                b.line_to(pt(0.56, 0.74));
+                b.line_to(pt(0.56, 0.16));
+                b.close();
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::Apps => {
+                // 3x3 app grid dots (Material 'apps')
+                let mut b = PathBuilder::fill();
+                for &cx in &[0.26, 0.50, 0.74] {
+                    for &cy in &[0.26, 0.50, 0.74] {
+                        let r = 0.055;
+                        b.move_to(pt(cx - r, cy - r));
+                        b.line_to(pt(cx + r, cy - r));
+                        b.line_to(pt(cx + r, cy + r));
+                        b.line_to(pt(cx - r, cy + r));
+                        b.close();
+                    }
+                }
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::Calculate => {
+                // Calculator icon (Material 'calculate')
+                let mut b = PathBuilder::stroke(px(stroke_w));
+                b.move_to(pt(0.24, 0.16));
+                b.line_to(pt(0.76, 0.16));
+                b.line_to(pt(0.76, 0.84));
+                b.line_to(pt(0.24, 0.84));
+                b.close();
+                b.move_to(pt(0.32, 0.28));
+                b.line_to(pt(0.68, 0.28));
+                b.move_to(pt(0.32, 0.44));
+                b.line_to(pt(0.44, 0.44));
+                b.move_to(pt(0.56, 0.44));
+                b.line_to(pt(0.68, 0.44));
+                b.move_to(pt(0.32, 0.58));
+                b.line_to(pt(0.44, 0.58));
+                b.move_to(pt(0.56, 0.58));
+                b.line_to(pt(0.68, 0.58));
+                b.move_to(pt(0.32, 0.72));
+                b.line_to(pt(0.68, 0.72));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::Public => {
+                // Globe circle with equator and meridian (Material 'public')
+                let mut b = PathBuilder::stroke(px(stroke_w));
+                b.move_to(pt(0.50, 0.16));
+                b.line_to(pt(0.80, 0.35));
+                b.line_to(pt(0.84, 0.50));
+                b.line_to(pt(0.80, 0.65));
+                b.line_to(pt(0.50, 0.84));
+                b.line_to(pt(0.20, 0.65));
+                b.line_to(pt(0.16, 0.50));
+                b.line_to(pt(0.20, 0.35));
+                b.close();
+                b.move_to(pt(0.16, 0.50));
+                b.line_to(pt(0.84, 0.50));
+                b.move_to(pt(0.50, 0.16));
+                b.line_to(pt(0.50, 0.84));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::Search => {
+                // Magnifying glass (Material 'search')
+                let mut b = PathBuilder::stroke(px(stroke_w));
+                b.move_to(pt(0.42, 0.18));
+                b.line_to(pt(0.64, 0.28));
+                b.line_to(pt(0.68, 0.44));
+                b.line_to(pt(0.60, 0.62));
+                b.line_to(pt(0.42, 0.68));
+                b.line_to(pt(0.24, 0.60));
+                b.line_to(pt(0.18, 0.44));
+                b.line_to(pt(0.24, 0.28));
+                b.close();
+                b.move_to(pt(0.60, 0.60));
+                b.line_to(pt(0.82, 0.82));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::VolumeUp => {
+                // Speaker cone with sound arcs (Material 'volume_up')
+                let mut b = PathBuilder::stroke(px(stroke_w));
+                b.move_to(pt(0.18, 0.38));
+                b.line_to(pt(0.34, 0.38));
+                b.line_to(pt(0.52, 0.22));
+                b.line_to(pt(0.52, 0.78));
+                b.line_to(pt(0.34, 0.62));
+                b.line_to(pt(0.18, 0.62));
+                b.close();
+                b.move_to(pt(0.66, 0.34));
+                b.line_to(pt(0.72, 0.50));
+                b.line_to(pt(0.66, 0.66));
+                b.move_to(pt(0.78, 0.24));
+                b.line_to(pt(0.86, 0.50));
+                b.line_to(pt(0.78, 0.76));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            M3Icon::VolumeOff => {
+                // Speaker cone with diagonal slash (Material 'volume_off')
+                let mut b = PathBuilder::stroke(px(stroke_w));
+                b.move_to(pt(0.18, 0.38));
+                b.line_to(pt(0.34, 0.38));
+                b.line_to(pt(0.52, 0.22));
+                b.line_to(pt(0.52, 0.78));
+                b.line_to(pt(0.34, 0.62));
+                b.line_to(pt(0.18, 0.62));
+                b.close();
+                b.move_to(pt(0.18, 0.18));
+                b.line_to(pt(0.82, 0.82));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
         }
     }
 
@@ -669,6 +950,7 @@ impl M3Icon {
             M3Icon::ArrowBack => m3_svg!("M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"),
             M3Icon::ArrowForward => m3_svg!("M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"),
             M3Icon::Play => m3_svg!("M8 5v14l11-7z"),
+            M3Icon::Pause => m3_svg!("M6 19h4V5H6v14zm8-14v14h4V5h-4z"),
             M3Icon::Download => m3_svg!("M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"),
             M3Icon::Add => m3_svg!("M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"),
             M3Icon::Check => m3_svg!("M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"),
@@ -689,11 +971,26 @@ impl M3Icon {
             M3Icon::Person => m3_svg!("M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"),
             M3Icon::ExpandMore => m3_svg!("M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"),
             M3Icon::ExpandLess => m3_svg!("M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"),
+            M3Icon::Close => m3_svg!("M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"),
+            M3Icon::ChevronLeft => m3_svg!("M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"),
+            M3Icon::PushPin => m3_svg!("M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"),
+            M3Icon::PinOff => m3_svg!("M2 5.27L3.28 4 20 20.72 18.73 22l-4.93-4.93V22h-1.6v-6H7v-2l2-2v-1.07L2 5.27zM16 12l2 2v.18L14.82 11H16V4h1V2H7.82l2 2H8v8l-1.09 1.09 1.41 1.41L9.5 13.32V13h4.68l1.82 1.82V12z"),
+            M3Icon::OpenInNew => m3_svg!("M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"),
+            M3Icon::ChevronDown => m3_svg!("M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"),
+            M3Icon::ChevronUp => m3_svg!("M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"),
+            M3Icon::Remove => m3_svg!("M19 13H5v-2h14v2z"),
+            M3Icon::MusicNote => m3_svg!("M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"),
+            M3Icon::Apps => m3_svg!("M6 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 6c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 6c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-12c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 6c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 6c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-12c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 6c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 6c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"),
+            M3Icon::Calculate => m3_svg!("M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 6H7V7h10v2zm-8 3H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm-8 3H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm-8 3H7v-2h2v2zm8 0h-6v-2h6v2z"),
+            M3Icon::Public => m3_svg!("M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"),
+            M3Icon::Search => m3_svg!("M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"),
+            M3Icon::VolumeUp => m3_svg!("M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"),
+            M3Icon::VolumeOff => m3_svg!("M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"),
         }
     }
 
     /// Produce a GPUI native SVG element rendering the official Google Material Symbol at `size_px` with `color`.
-    pub fn element(&self, size_px: f32, color: Rgba) -> impl IntoElement {
+    pub fn element(&self, size_px: f32, color: Rgba) -> gpui::Svg {
         svg()
             .data(self.svg_bytes())
             .size(px(size_px))
@@ -706,7 +1003,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn icon_variants_are_distinct() {
+    fn icon_variants_are_unique() {
         let icons = [
             M3Icon::All,
             M3Icon::Shapes,
@@ -718,6 +1015,7 @@ mod tests {
             M3Icon::ArrowBack,
             M3Icon::ArrowForward,
             M3Icon::Play,
+            M3Icon::Pause,
             M3Icon::Download,
             M3Icon::Add,
             M3Icon::Check,
@@ -738,8 +1036,23 @@ mod tests {
             M3Icon::Person,
             M3Icon::ExpandMore,
             M3Icon::ExpandLess,
+            M3Icon::Close,
+            M3Icon::ChevronLeft,
+            M3Icon::PushPin,
+            M3Icon::PinOff,
+            M3Icon::OpenInNew,
+            M3Icon::ChevronDown,
+            M3Icon::ChevronUp,
+            M3Icon::Remove,
+            M3Icon::MusicNote,
+            M3Icon::Apps,
+            M3Icon::Calculate,
+            M3Icon::Public,
+            M3Icon::Search,
+            M3Icon::VolumeUp,
+            M3Icon::VolumeOff,
         ];
-        assert_eq!(icons.len(), 30);
+        assert_eq!(icons.len(), 46);
         for (i, a) in icons.iter().enumerate() {
             for (j, b) in icons.iter().enumerate() {
                 if i == j {
@@ -764,6 +1077,7 @@ mod tests {
             M3Icon::ArrowBack,
             M3Icon::ArrowForward,
             M3Icon::Play,
+            M3Icon::Pause,
             M3Icon::Download,
             M3Icon::Add,
             M3Icon::Check,
@@ -784,6 +1098,21 @@ mod tests {
             M3Icon::Person,
             M3Icon::ExpandMore,
             M3Icon::ExpandLess,
+            M3Icon::Close,
+            M3Icon::ChevronLeft,
+            M3Icon::PushPin,
+            M3Icon::PinOff,
+            M3Icon::OpenInNew,
+            M3Icon::ChevronDown,
+            M3Icon::ChevronUp,
+            M3Icon::Remove,
+            M3Icon::MusicNote,
+            M3Icon::Apps,
+            M3Icon::Calculate,
+            M3Icon::Public,
+            M3Icon::Search,
+            M3Icon::VolumeUp,
+            M3Icon::VolumeOff,
         ];
         for icon in icons {
             let bytes = icon.svg_bytes();

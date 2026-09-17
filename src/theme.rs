@@ -31,6 +31,16 @@ pub struct M3Palette {
     pub outline: Rgba,
     /// Subtle decorative divider and separator line color.
     pub outline_variant: Rgba,
+    /// Standard container background for cards, sheets, and dialog interiors.
+    pub surface_container: Rgba,
+    /// Lower-emphasis container background.
+    pub surface_container_low: Rgba,
+    /// Higher-emphasis container background.
+    pub surface_container_high: Rgba,
+    /// Standard error feedback color for badges, alerts, and destructive actions.
+    pub error: Rgba,
+    /// High-contrast content color drawn on top of [`Self::error`].
+    pub on_error: Rgba,
     /// Highest-elevation container background for switches and elevated surfaces.
     pub surface_container_highest: Rgba,
 }
@@ -65,6 +75,11 @@ pub fn light_scheme() -> M3Palette {
         inverse_on_surface: srgb(254, 243, 237),
         outline: srgb(154, 126, 114),
         outline_variant: srgb(226, 203, 192),
+        surface_container: srgb(238, 218, 206),
+        surface_container_low: srgb(248, 235, 226),
+        surface_container_high: srgb(232, 212, 198),
+        error: srgb(186, 26, 26),
+        on_error: srgb(255, 255, 255),
         surface_container_highest: srgb(245, 225, 212),
     }
 }
@@ -90,6 +105,11 @@ pub fn dark_scheme() -> M3Palette {
         inverse_on_surface: srgb(48, 45, 54),
         outline: srgb(145, 140, 150),
         outline_variant: srgb(72, 68, 78),
+        surface_container: srgb(32, 29, 36),
+        surface_container_low: srgb(25, 23, 30),
+        surface_container_high: srgb(42, 38, 48),
+        error: srgb(255, 180, 171),
+        on_error: srgb(105, 0, 5),
         surface_container_highest: srgb(40, 37, 46),
     }
 }

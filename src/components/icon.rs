@@ -88,6 +88,10 @@ pub enum M3Icon {
     Keyboard,
     /// Vinyl record / disc (Material `album`).
     Album,
+    /// Two vertical pause bars (Material `pause`).
+    Pause,
+    /// Musical note glyph (Material `music_note`).
+    MusicNote,
 }
 
 impl M3Icon {
@@ -667,7 +671,9 @@ impl M3Icon {
             | M3Icon::MicOff
             | M3Icon::Fullscreen
             | M3Icon::Keyboard
-            | M3Icon::Album => {
+            | M3Icon::Album
+            | M3Icon::Pause
+            | M3Icon::MusicNote => {
                 // Drawn via SVG element
             }
         }
@@ -727,6 +733,8 @@ impl M3Icon {
             M3Icon::Fullscreen => m3_svg!("M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"),
             M3Icon::Keyboard => m3_svg!("M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"),
             M3Icon::Album => m3_svg!("M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"),
+            M3Icon::Pause => m3_svg!("M6 19h4V5H6v14zm8-14v14h4V5h-4z"),
+            M3Icon::MusicNote => m3_svg!("M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"),
         }
     }
 
@@ -785,8 +793,10 @@ mod tests {
             M3Icon::Fullscreen,
             M3Icon::Keyboard,
             M3Icon::Album,
+            M3Icon::Pause,
+            M3Icon::MusicNote,
         ];
-        assert_eq!(icons.len(), 39);
+        assert_eq!(icons.len(), 41);
         for (i, a) in icons.iter().enumerate() {
             for (j, b) in icons.iter().enumerate() {
                 if i == j {
@@ -840,6 +850,8 @@ mod tests {
             M3Icon::Fullscreen,
             M3Icon::Keyboard,
             M3Icon::Album,
+            M3Icon::Pause,
+            M3Icon::MusicNote,
         ];
         for icon in icons {
             let bytes = icon.svg_bytes();

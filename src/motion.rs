@@ -37,6 +37,16 @@ impl SpringParams {
             mass: 1.0,
         }
     }
+
+    /// Smooth critically damped motion for sliding indicators and continuous gliding, zeta ≈ 1.0 (zero overshoot).
+    #[must_use]
+    pub fn smooth() -> Self {
+        Self {
+            stiffness: 380.0,
+            damping: 39.0,
+            mass: 1.0,
+        }
+    }
 }
 
 /// Spring state tracking position and velocity for one animated axis.
@@ -80,5 +90,26 @@ mod tests {
         let next = spring_step(params, state, 1.0, 1.0 / 60.0);
         assert!(next.pos > 0.0);
         assert!(next.vel > 0.0);
+    }
+
+    #[test]
+    fn smooth_spring_has_no_overshoot() {
+        let params = SpringParams::smooth();
+        let mut state = SpringState { pos: 0.0, vel: 0.0 };
+        let target = 100.0;
+        let mut max_pos: f32 = 0.0;
+        for _ in 0..120 {
+            state = spring_step(params, state, target, 1.0 / 60.0);
+            if state.pos > max_pos {
+                max_pos = state.pos;
+            }
+        }
+        assert!(
+            max_pos <= target + 0.05,
+            "smooth spring should not overshoot target (max_pos: {}, target: {})",
+            max_pos,
+            target
+        );
+        assert!(state.is_settled(target, 0.1, 0.1));
     }
 }

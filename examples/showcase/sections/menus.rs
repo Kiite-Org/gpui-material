@@ -130,6 +130,7 @@ impl Showcase {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let is_grouped = self.menus.split_menu.variant == MenuVariant::GroupedCards;
+        let is_linked = self.menus.split_menu.link_group_indicators;
         let left_selected = self.menus.icon_action_label.clone();
         let right_selected = self.menus.split_action_label.clone();
 
@@ -207,71 +208,115 @@ impl Showcase {
                                     .child("Material 3 Expressive Menus · Grouped Cards (Callout 10) & Unified Card with Dividers (Callout 11)"),
                             ),
                     )
-                    // Container Style Segmented Toggle
                     .child(
                         div()
                             .flex()
                             .items_center()
-                            .gap_1()
-                            .p_1()
-                            .rounded_full()
-                            .bg(pal.surface_container_highest)
-                            // Grouped Cards button
+                            .gap_2()
+                            // Continuous Linking Toggle
                             .child(
                                 div()
-                                    .px_3()
-                                    .py_1()
+                                    .flex()
+                                    .items_center()
+                                    .p_1()
                                     .rounded_full()
-                                    .cursor_pointer()
-                                    .text_xs()
-                                    .font_weight(gpui::FontWeight::MEDIUM)
-                                    .bg(if is_grouped {
-                                        pal.secondary_container
-                                    } else {
-                                        gpui::Rgba { a: 0.0, ..pal.surface }
-                                    })
-                                    .text_color(if is_grouped {
-                                        pal.on_secondary_container
-                                    } else {
-                                        pal.on_surface_variant
-                                    })
-                                    .child("Grouped Cards")
-                                    .on_mouse_down(
-                                        gpui::MouseButton::Left,
-                                        cx.listener(|this, _, _, cx| {
-                                            this.menus.standalone_menu.variant = MenuVariant::GroupedCards;
-                                            this.menus.split_menu.variant = MenuVariant::GroupedCards;
-                                            cx.notify();
-                                        }),
+                                    .bg(pal.surface_container_highest)
+                                    .child(
+                                        div()
+                                            .px_3()
+                                            .py_1()
+                                            .rounded_full()
+                                            .cursor_pointer()
+                                            .text_xs()
+                                            .font_weight(gpui::FontWeight::MEDIUM)
+                                            .bg(if is_linked {
+                                                pal.secondary_container
+                                            } else {
+                                                gpui::Rgba { a: 0.0, ..pal.surface }
+                                            })
+                                            .text_color(if is_linked {
+                                                pal.on_secondary_container
+                                            } else {
+                                                pal.on_surface_variant
+                                            })
+                                            .child(if is_linked { "Linked Gap: ON" } else { "Linked Gap: OFF" })
+                                            .on_mouse_down(
+                                                gpui::MouseButton::Left,
+                                                cx.listener(|this, _, _, cx| {
+                                                    let next = !this.menus.split_menu.link_group_indicators;
+                                                    this.menus.standalone_menu.link_group_indicators = next;
+                                                    this.menus.split_menu.link_group_indicators = next;
+                                                    cx.notify();
+                                                }),
+                                            ),
                                     ),
                             )
-                            // Unified Card button
+                            // Container Style Segmented Toggle
                             .child(
                                 div()
-                                    .px_3()
-                                    .py_1()
+                                    .flex()
+                                    .items_center()
+                                    .gap_1()
+                                    .p_1()
                                     .rounded_full()
-                                    .cursor_pointer()
-                                    .text_xs()
-                                    .font_weight(gpui::FontWeight::MEDIUM)
-                                    .bg(if !is_grouped {
-                                        pal.secondary_container
-                                    } else {
-                                        gpui::Rgba { a: 0.0, ..pal.surface }
-                                    })
-                                    .text_color(if !is_grouped {
-                                        pal.on_secondary_container
-                                    } else {
-                                        pal.on_surface_variant
-                                    })
-                                    .child("Unified Card")
-                                    .on_mouse_down(
-                                        gpui::MouseButton::Left,
-                                        cx.listener(|this, _, _, cx| {
-                                            this.menus.standalone_menu.variant = MenuVariant::UnifiedCard;
-                                            this.menus.split_menu.variant = MenuVariant::UnifiedCard;
-                                            cx.notify();
-                                        }),
+                                    .bg(pal.surface_container_highest)
+                                    // Grouped Cards button
+                                    .child(
+                                        div()
+                                            .px_3()
+                                            .py_1()
+                                            .rounded_full()
+                                            .cursor_pointer()
+                                            .text_xs()
+                                            .font_weight(gpui::FontWeight::MEDIUM)
+                                            .bg(if is_grouped {
+                                                pal.secondary_container
+                                            } else {
+                                                gpui::Rgba { a: 0.0, ..pal.surface }
+                                            })
+                                            .text_color(if is_grouped {
+                                                pal.on_secondary_container
+                                            } else {
+                                                pal.on_surface_variant
+                                            })
+                                            .child("Grouped Cards")
+                                            .on_mouse_down(
+                                                gpui::MouseButton::Left,
+                                                cx.listener(|this, _, _, cx| {
+                                                    this.menus.standalone_menu.variant = MenuVariant::GroupedCards;
+                                                    this.menus.split_menu.variant = MenuVariant::GroupedCards;
+                                                    cx.notify();
+                                                }),
+                                            ),
+                                    )
+                                    // Unified Card button
+                                    .child(
+                                        div()
+                                            .px_3()
+                                            .py_1()
+                                            .rounded_full()
+                                            .cursor_pointer()
+                                            .text_xs()
+                                            .font_weight(gpui::FontWeight::MEDIUM)
+                                            .bg(if !is_grouped {
+                                                pal.secondary_container
+                                            } else {
+                                                gpui::Rgba { a: 0.0, ..pal.surface }
+                                            })
+                                            .text_color(if !is_grouped {
+                                                pal.on_secondary_container
+                                            } else {
+                                                pal.on_surface_variant
+                                            })
+                                            .child("Unified Card")
+                                            .on_mouse_down(
+                                                gpui::MouseButton::Left,
+                                                cx.listener(|this, _, _, cx| {
+                                                    this.menus.standalone_menu.variant = MenuVariant::UnifiedCard;
+                                                    this.menus.split_menu.variant = MenuVariant::UnifiedCard;
+                                                    cx.notify();
+                                                }),
+                                            ),
                                     ),
                             ),
                     ),
@@ -359,9 +404,10 @@ impl Showcase {
                                         .items_end()
                                         .w_full()
                                         .child(
-                                            self.menus.standalone_menu.render_with_handlers(
+                                            self.menus.standalone_menu.render_interactive(
                                                 pal,
                                                 cx,
+                                                |this| &mut this.menus.standalone_menu,
                                                 |this, item_id, cx| {
                                                     this.select_standalone_menu_item(item_id, cx);
                                                 },
@@ -462,9 +508,10 @@ impl Showcase {
                                         .items_start()
                                         .w_full()
                                         .child(
-                                            self.menus.split_menu.render_with_handlers(
+                                            self.menus.split_menu.render_interactive(
                                                 pal,
                                                 cx,
+                                                |this| &mut this.menus.split_menu,
                                                 |this, item_id, cx| {
                                                     let label = this
                                                         .menus

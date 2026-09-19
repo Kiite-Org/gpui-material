@@ -170,6 +170,181 @@ pub fn dark_scheme() -> M3Palette {
     }
 }
 
+/// Converts an Argb color from material-colors into a GPUI Rgba.
+#[inline]
+pub fn argb_to_rgba(c: material_colors::color::Argb) -> Rgba {
+    Rgba {
+        r: c.red as f32 / 255.0,
+        g: c.green as f32 / 255.0,
+        b: c.blue as f32 / 255.0,
+        a: c.alpha as f32 / 255.0,
+    }
+}
+
+impl From<&material_colors::scheme::Scheme> for M3Palette {
+    fn from(s: &material_colors::scheme::Scheme) -> Self {
+        Self {
+            primary: argb_to_rgba(s.primary),
+            on_primary: argb_to_rgba(s.on_primary),
+            primary_container: argb_to_rgba(s.primary_container),
+            on_primary_container: argb_to_rgba(s.on_primary_container),
+            secondary: argb_to_rgba(s.secondary),
+            on_secondary: argb_to_rgba(s.on_secondary),
+            secondary_container: argb_to_rgba(s.secondary_container),
+            on_secondary_container: argb_to_rgba(s.on_secondary_container),
+            tertiary: argb_to_rgba(s.tertiary),
+            on_tertiary: argb_to_rgba(s.on_tertiary),
+            tertiary_container: argb_to_rgba(s.tertiary_container),
+            on_tertiary_container: argb_to_rgba(s.on_tertiary_container),
+            error: argb_to_rgba(s.error),
+            on_error: argb_to_rgba(s.on_error),
+            error_container: argb_to_rgba(s.error_container),
+            on_error_container: argb_to_rgba(s.on_error_container),
+            background: argb_to_rgba(s.background),
+            on_background: argb_to_rgba(s.on_background),
+            surface: argb_to_rgba(s.surface),
+            on_surface: argb_to_rgba(s.on_surface),
+            surface_variant: argb_to_rgba(s.surface_variant),
+            on_surface_variant: argb_to_rgba(s.on_surface_variant),
+            inverse_primary: argb_to_rgba(s.inverse_primary),
+            inverse_surface: argb_to_rgba(s.inverse_surface),
+            inverse_on_surface: argb_to_rgba(s.inverse_on_surface),
+            outline: argb_to_rgba(s.outline),
+            outline_variant: argb_to_rgba(s.outline_variant),
+            surface_container_lowest: argb_to_rgba(s.surface_container_lowest),
+            surface_container_low: argb_to_rgba(s.surface_container_low),
+            surface_container: argb_to_rgba(s.surface_container),
+            surface_container_high: argb_to_rgba(s.surface_container_high),
+            surface_container_highest: argb_to_rgba(s.surface_container_highest),
+        }
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SerializablePalette {
+    primary: [f32; 4],
+    on_primary: [f32; 4],
+    primary_container: [f32; 4],
+    on_primary_container: [f32; 4],
+    secondary: [f32; 4],
+    on_secondary: [f32; 4],
+    secondary_container: [f32; 4],
+    on_secondary_container: [f32; 4],
+    tertiary: [f32; 4],
+    on_tertiary: [f32; 4],
+    tertiary_container: [f32; 4],
+    on_tertiary_container: [f32; 4],
+    error: [f32; 4],
+    on_error: [f32; 4],
+    error_container: [f32; 4],
+    on_error_container: [f32; 4],
+    background: [f32; 4],
+    on_background: [f32; 4],
+    surface: [f32; 4],
+    on_surface: [f32; 4],
+    surface_variant: [f32; 4],
+    on_surface_variant: [f32; 4],
+    inverse_primary: [f32; 4],
+    inverse_surface: [f32; 4],
+    inverse_on_surface: [f32; 4],
+    outline: [f32; 4],
+    outline_variant: [f32; 4],
+    surface_container_lowest: [f32; 4],
+    surface_container_low: [f32; 4],
+    surface_container: [f32; 4],
+    surface_container_high: [f32; 4],
+    surface_container_highest: [f32; 4],
+}
+
+impl serde::Serialize for M3Palette {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let to_arr = |c: Rgba| [c.r, c.g, c.b, c.a];
+        let s = SerializablePalette {
+            primary: to_arr(self.primary),
+            on_primary: to_arr(self.on_primary),
+            primary_container: to_arr(self.primary_container),
+            on_primary_container: to_arr(self.on_primary_container),
+            secondary: to_arr(self.secondary),
+            on_secondary: to_arr(self.on_secondary),
+            secondary_container: to_arr(self.secondary_container),
+            on_secondary_container: to_arr(self.on_secondary_container),
+            tertiary: to_arr(self.tertiary),
+            on_tertiary: to_arr(self.on_tertiary),
+            tertiary_container: to_arr(self.tertiary_container),
+            on_tertiary_container: to_arr(self.on_tertiary_container),
+            error: to_arr(self.error),
+            on_error: to_arr(self.on_error),
+            error_container: to_arr(self.error_container),
+            on_error_container: to_arr(self.on_error_container),
+            background: to_arr(self.background),
+            on_background: to_arr(self.on_background),
+            surface: to_arr(self.surface),
+            on_surface: to_arr(self.on_surface),
+            surface_variant: to_arr(self.surface_variant),
+            on_surface_variant: to_arr(self.on_surface_variant),
+            inverse_primary: to_arr(self.inverse_primary),
+            inverse_surface: to_arr(self.inverse_surface),
+            inverse_on_surface: to_arr(self.inverse_on_surface),
+            outline: to_arr(self.outline),
+            outline_variant: to_arr(self.outline_variant),
+            surface_container_lowest: to_arr(self.surface_container_lowest),
+            surface_container_low: to_arr(self.surface_container_low),
+            surface_container: to_arr(self.surface_container),
+            surface_container_high: to_arr(self.surface_container_high),
+            surface_container_highest: to_arr(self.surface_container_highest),
+        };
+        s.serialize(serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for M3Palette {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = SerializablePalette::deserialize(deserializer)?;
+        let from_arr = |a: [f32; 4]| Rgba { r: a[0], g: a[1], b: a[2], a: a[3] };
+        Ok(Self {
+            primary: from_arr(s.primary),
+            on_primary: from_arr(s.on_primary),
+            primary_container: from_arr(s.primary_container),
+            on_primary_container: from_arr(s.on_primary_container),
+            secondary: from_arr(s.secondary),
+            on_secondary: from_arr(s.on_secondary),
+            secondary_container: from_arr(s.secondary_container),
+            on_secondary_container: from_arr(s.on_secondary_container),
+            tertiary: from_arr(s.tertiary),
+            on_tertiary: from_arr(s.on_tertiary),
+            tertiary_container: from_arr(s.tertiary_container),
+            on_tertiary_container: from_arr(s.on_tertiary_container),
+            error: from_arr(s.error),
+            on_error: from_arr(s.on_error),
+            error_container: from_arr(s.error_container),
+            on_error_container: from_arr(s.on_error_container),
+            background: from_arr(s.background),
+            on_background: from_arr(s.on_background),
+            surface: from_arr(s.surface),
+            on_surface: from_arr(s.on_surface),
+            surface_variant: from_arr(s.surface_variant),
+            on_surface_variant: from_arr(s.on_surface_variant),
+            inverse_primary: from_arr(s.inverse_primary),
+            inverse_surface: from_arr(s.inverse_surface),
+            inverse_on_surface: from_arr(s.inverse_on_surface),
+            outline: from_arr(s.outline),
+            outline_variant: from_arr(s.outline_variant),
+            surface_container_lowest: from_arr(s.surface_container_lowest),
+            surface_container_low: from_arr(s.surface_container_low),
+            surface_container: from_arr(s.surface_container),
+            surface_container_high: from_arr(s.surface_container_high),
+            surface_container_highest: from_arr(s.surface_container_highest),
+        })
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -58,11 +58,12 @@ pub mod theme;
 pub use components::button;
 pub use components::card;
 pub use components::icon;
+pub use components::menu;
+pub use components::progress_bar;
 pub use components::shape;
 pub use components::slider;
 pub use components::split_button;
 pub use components::switch;
-pub use components::menu;
 
 // Convenient root re-exports with inlined docs
 #[doc(inline)]
@@ -85,6 +86,8 @@ pub use components::shape::{
     draw_morph_with_bounce, draw_points, draw_shape, draw_shape_morph_with_bounce,
     lerp_and_rotate_points,
 };
+#[doc(inline)]
+pub use components::progress_bar::{ProgressBar, ProgressBarColors, ProgressBarMetrics};
 #[doc(inline)]
 pub use components::slider::{SliderColors, SliderMetrics, SliderSpec};
 #[doc(inline)]
@@ -112,6 +115,7 @@ pub mod prelude {
     };
     pub use crate::motion::{SpringParams, SpringState};
     pub use crate::shape::MaterialShape;
+    pub use crate::progress_bar::{ProgressBar, ProgressBarColors, ProgressBarMetrics};
     pub use crate::slider::{SliderColors, SliderMetrics, SliderSpec};
     pub use crate::split_button::{
         SplitButtonColors, SplitButtonMetrics, SplitButtonModel, SplitButtonSize, SplitButtonVariant,

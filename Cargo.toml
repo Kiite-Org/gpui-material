@@ -12,6 +12,8 @@ categories = ["gui"]
 # Pinned upstream snapshot of Zed main on branch wgpu-trial.
 # Stable crates.io gpui stays at 0.2.2 while main moved to wgpu.
 gpui = { package = "gpui-pre", version = "=0.3.4" }
+serde = { version = "1.0", features = ["derive"] }
+material-colors = { version = "0.4.2", features = ["image", "serde"] }
 
 [dev-dependencies]
 # Platform entry point for the gallery example only.

@@ -78,6 +78,7 @@ pub use components::icon::M3Icon;
 #[doc(inline)]
 pub use components::menu::{
     MenuColors, MenuGroup, MenuItem, MenuItemTrailing, MenuMetrics, MenuModel, MenuVariant,
+    SubmenuPlacement,
 };
 #[doc(inline)]
 pub use components::shape::{
@@ -109,6 +110,7 @@ pub mod prelude {
     pub use crate::icon::M3Icon;
     pub use crate::menu::{
         MenuColors, MenuGroup, MenuItem, MenuItemTrailing, MenuMetrics, MenuModel, MenuVariant,
+        SubmenuPlacement,
     };
     pub use crate::motion::{SpringParams, SpringState};
     pub use crate::shape::MaterialShape;

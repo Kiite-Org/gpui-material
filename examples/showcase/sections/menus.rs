@@ -45,12 +45,20 @@ pub(crate) fn init_menus() -> MenusState {
     standalone_menu.selected_id = None;
     standalone_menu.is_open = true;
 
-    // 2. Right Menu: matching Reference 2 (Split Button with 2 Groups)
+    // 2. Right Menu: matching Reference 2 & Reference 6 (Split Button with Cascading Submenus)
+    let item2_submenu = MenuModel::new([
+        MenuGroup::new().items([
+            MenuItem::new(201, "Item 1"),
+            MenuItem::new(202, "Item 2"),
+            MenuItem::new(203, "Item 3"),
+        ]),
+    ]);
+
     let right_g1 = MenuGroup::new().items([
         MenuItem::new(101, "Item 1").leading_icon(M3Icon::Visibility),
         MenuItem::new(102, "Item 2")
             .leading_icon(M3Icon::ContentCopy)
-            .shortcut("⌘C"),
+            .submenu(item2_submenu),
         MenuItem::new(103, "Item 3")
             .leading_icon(M3Icon::Check)
             .selected(true),
@@ -58,7 +66,7 @@ pub(crate) fn init_menus() -> MenusState {
     let right_g2 = MenuGroup::new().items([
         MenuItem::new(104, "Item 4")
             .leading_icon(M3Icon::Person)
-            .chevron(),
+            .shortcut("⌘P"),
         MenuItem::new(105, "Item 5")
             .leading_icon(M3Icon::Settings),
     ]);
@@ -199,13 +207,24 @@ impl Showcase {
                                             .font_weight(gpui::FontWeight::SEMIBOLD)
                                             .text_color(pal.on_primary)
                                             .child("AndroidX M3E"),
+                                    )
+                                    .child(
+                                        div()
+                                            .px_2()
+                                            .py_0p5()
+                                            .rounded_full()
+                                            .bg(pal.secondary_container)
+                                            .text_xs()
+                                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                                            .text_color(pal.on_secondary_container)
+                                            .child("Submenus (Callout 6)"),
                                     ),
                             )
                             .child(
                                 div()
                                     .text_xs()
                                     .text_color(pal.on_surface_variant)
-                                    .child("Material 3 Expressive Menus · Grouped Cards (Callout 10) & Unified Card with Dividers (Callout 11)"),
+                                    .child("Material 3 Expressive Menus · Cascading Submenu (Callout 6), Grouped Cards (Callout 10) & Unified Card with Dividers (Callout 11)"),
                             ),
                     )
                     .child(
@@ -422,7 +441,7 @@ impl Showcase {
                             .flex_col()
                             .items_start()
                             .gap_3()
-                            .w(px(260.0))
+                            .w(px(220.0))
                             // Label / subtitle
                             .child(
                                 div()
@@ -516,10 +535,7 @@ impl Showcase {
                                                     let label = this
                                                         .menus
                                                         .split_menu
-                                                        .groups
-                                                        .iter()
-                                                        .flat_map(|g| &g.items)
-                                                        .find(|it| it.id == item_id)
+                                                        .find_item(item_id)
                                                         .map(|it| it.label.clone())
                                                         .unwrap_or_else(|| "Action".into());
                                                     this.select_split_dropdown_item(item_id, label, cx);

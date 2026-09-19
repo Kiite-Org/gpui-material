@@ -4,10 +4,49 @@
 //! specifications and visual reference designs. Supports grouped cards,
 //! unified cards with dividers, two-line layout with supporting text,
 //! keyboard shortcuts, submenu chevrons, badges, spring-animated open/close
-//! transitions, and spring state layers on items.
+//! transitions, spring state layers on items, and cascading popup submenus (Callout 6).
+//!
+//! ### Cascading Popup Submenus (Callout 6)
+//!
+//! Cascading submenus open from a parent menu item and display a secondary floating
+//! menu card overlapping the triggering item with an elevated drop shadow (`shadow_xl`).
+//!
+//! - **Overlap**: The popup horizontally overlaps the parent menu (default 28px),
+//!   preventing cursor gaps during diagonal movement.
+//! - **Spring Physics**: Animated scale ($0.88 \to 1.0$), opacity ($0.0 \to 1.0$),
+//!   and slide ($X$-offset) on open, with an unhurried, zero-snap spring fade-out on close.
+//! - **Concentric Corner Fitting**: Items inside the submenu automatically fit
+//!   concentrically within the container's rounded card.
+//! - **Gliding Indicator**: Submenu items feature their own gliding hover and selection
+//!   indicators with full spring physics.
+//!
+//! ```rust
+//! use gpui_material::{MenuItem, MenuGroup, MenuModel};
+//!
+//! // 1. Build the nested submenu
+//! let submenu = MenuModel::new([
+//!     MenuGroup::new().items([
+//!         MenuItem::new(201, "Sub Item 1"),
+//!         MenuItem::new(202, "Sub Item 2"),
+//!         MenuItem::new(203, "Sub Item 3"),
+//!     ])
+//! ]);
+//!
+//! // 2. Attach it to a parent item (automatically adds trailing chevron)
+//! let parent_item = MenuItem::new(102, "Item 2").submenu(submenu);
+//!
+//! let menu = MenuModel::new([
+//!     MenuGroup::new().items([
+//!         MenuItem::new(101, "Item 1"),
+//!         parent_item,
+//!         MenuItem::new(103, "Item 3"),
+//!     ])
+//! ]);
+//! ```
 
 use gpui::{
-    div, prelude::*, px, IntoElement, ParentElement, Rgba, SharedString, Styled, Window,
+    div, hsla, point, prelude::*, px, BoxShadow, IntoElement, ParentElement, Rgba, SharedString,
+    Styled, Window,
 };
 
 use crate::components::icon::M3Icon;
@@ -57,6 +96,8 @@ pub struct MenuItem {
     pub is_pressed: bool,
     /// Animated spring state layer for hover and press overlay.
     pub state_layer: SpringState,
+    /// Optional nested cascading submenu attached to this item.
+    pub submenu: Option<Box<MenuModel>>,
 }
 
 impl MenuItem {
@@ -74,6 +115,7 @@ impl MenuItem {
             is_hovered: false,
             is_pressed: false,
             state_layer: SpringState::default(),
+            submenu: None,
         }
     }
 
@@ -124,6 +166,41 @@ impl MenuItem {
     pub fn chevron(mut self) -> Self {
         self.trailing = MenuItemTrailing::Chevron;
         self
+    }
+
+    /// Attaches a nested cascading submenu to this menu item.
+    ///
+    /// If trailing content is currently [`MenuItemTrailing::None`], automatically assigns
+    /// [`MenuItemTrailing::Chevron`] to render the standard submenu navigation pointer (`▸`).
+    ///
+    /// # Example
+    /// ```
+    /// use gpui_material::{MenuItem, MenuGroup, MenuModel};
+    ///
+    /// let sub = MenuModel::new([
+    ///     MenuGroup::new().items([
+    ///         MenuItem::new(201, "Sub Item 1"),
+    ///         MenuItem::new(202, "Sub Item 2"),
+    ///     ])
+    /// ]);
+    ///
+    /// let item = MenuItem::new(102, "Item 2").submenu(sub);
+    /// assert!(item.has_submenu());
+    /// ```
+    #[must_use]
+    pub fn submenu(mut self, menu: MenuModel) -> Self {
+        if self.trailing == MenuItemTrailing::None {
+            self.trailing = MenuItemTrailing::Chevron;
+        }
+        self.submenu = Some(Box::new(menu));
+        self
+    }
+
+    /// Returns `true` if this item has an attached cascading submenu.
+    #[inline]
+    #[must_use]
+    pub fn has_submenu(&self) -> bool {
+        self.submenu.is_some()
     }
 
     /// Sets selected state (rendered with rounded selection pill background).
@@ -384,6 +461,16 @@ impl Default for MenuGroup {
     }
 }
 
+/// Placement direction for cascading submenus relative to the parent menu.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SubmenuPlacement {
+    /// Cascades to the right of the parent menu, overlapping its right edge (default).
+    #[default]
+    Right,
+    /// Cascades to the left of the parent menu, overlapping its left edge.
+    Left,
+}
+
 /// Container display style for Material 3 Expressive menus.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum MenuVariant {
@@ -578,6 +665,32 @@ pub struct MenuModel {
     pub match_inner_group_card_corners: bool,
     /// Tracks which group was last hovered for continuous cross-group trajectory handoff.
     pub last_hovered_group_idx: Option<usize>,
+    /// ID of the menu item whose cascading submenu is currently open / active.
+    pub active_submenu_item_id: Option<usize>,
+    /// ID of the submenu item during exit transition so smooth spring close animation completes without snapping.
+    pub last_submenu_item_id: Option<usize>,
+    /// Spring animation progress (0.0 to 1.0) for the cascading submenu popup.
+    pub submenu_progress: SpringState,
+    /// Horizontal overlap (in pixels) of the cascading submenu over the parent menu card.
+    ///
+    /// Matching reference design Callout 6, cascading submenus sit subtly overlapping the
+    /// parent menu card right at its edge by 2 pixels. Defaults to `2.0` pixels.
+    pub submenu_overlap: f32,
+    /// Vertical offset (in pixels) of the cascading submenu relative to the triggering item.
+    ///
+    /// Defaults to `-4.0` pixels, matching reference design Callout 6 where Item 1 of the
+    /// submenu aligns level with the triggering parent item.
+    pub submenu_offset_y: f32,
+    /// Cascading popup placement direction (defaults to `SubmenuPlacement::Right`).
+    pub submenu_placement: SubmenuPlacement,
+    /// Whether hovering over a parent item with an attached submenu automatically opens it.
+    ///
+    /// When `true` (default), hovering opens the submenu and hovering away closes it.
+    /// When `false`, submenus are opened/toggled explicitly via click.
+    pub open_submenu_on_hover: bool,
+    /// Optional explicit menu container width for cascading position calculations.
+    /// When `None`, defaults to `metrics.min_width`.
+    pub menu_width: Option<f32>,
 }
 
 impl MenuModel {
@@ -616,7 +729,241 @@ impl MenuModel {
             link_group_indicators: true,
             match_inner_group_card_corners: true,
             last_hovered_group_idx: None,
+            active_submenu_item_id: None,
+            last_submenu_item_id: None,
+            submenu_progress: SpringState::default(),
+            submenu_overlap: 2.0,
+            submenu_offset_y: -4.0,
+            submenu_placement: SubmenuPlacement::Right,
+            open_submenu_on_hover: true,
+            menu_width: None,
         }
+    }
+
+    /// Sets the horizontal overlap (in pixels) of cascading submenus over the parent menu card.
+    ///
+    /// Defaults to `2.0` pixels, matching reference design Callout 6.
+    #[must_use]
+    pub fn submenu_overlap(mut self, overlap: f32) -> Self {
+        self.submenu_overlap = overlap;
+        self
+    }
+
+    /// Sets the vertical offset (in pixels) of cascading submenus relative to the triggering item's top.
+    ///
+    /// Defaults to `-4.0` pixels, matching reference design Callout 6 where Item 1 of the
+    /// submenu aligns level with the triggering parent item.
+    #[must_use]
+    pub fn submenu_offset_y(mut self, offset: f32) -> Self {
+        self.submenu_offset_y = offset;
+        self
+    }
+
+    /// Returns the box shadow configuration for cascading submenus.
+    ///
+    /// Provides a subtle, directional elevation drop shadow that casts softly
+    /// across the parent card boundary and around the floating container so the
+    /// cascading popup is immediately recognizable against both light and dark backgrounds.
+    #[must_use]
+    pub fn submenu_box_shadow(placement: SubmenuPlacement) -> Vec<BoxShadow> {
+        let offset_x = match placement {
+            SubmenuPlacement::Right => px(-3.0),
+            SubmenuPlacement::Left => px(3.0),
+        };
+        vec![
+            // Directional elevation shadow casting across the overlapping boundary
+            BoxShadow {
+                color: hsla(0.0, 0.0, 0.0, 0.38),
+                offset: point(offset_x, px(4.0)),
+                blur_radius: px(12.0),
+                spread_radius: px(0.0),
+                inset: false,
+            },
+            // Soft diffuse ambient shadow around the card perimeter
+            BoxShadow {
+                color: hsla(0.0, 0.0, 0.0, 0.22),
+                offset: point(px(0.0), px(2.0)),
+                blur_radius: px(6.0),
+                spread_radius: px(0.0),
+                inset: false,
+            },
+        ]
+    }
+
+    /// Sets the cascading submenu placement direction (Right or Left).
+    #[must_use]
+    pub fn submenu_placement(mut self, placement: SubmenuPlacement) -> Self {
+        self.submenu_placement = placement;
+        self
+    }
+
+    /// Sets whether hovering an item with an attached submenu automatically opens it.
+    ///
+    /// When `true` (default), hovering opens the submenu and hovering away closes it.
+    /// When `false`, submenus are opened/toggled explicitly via click.
+    #[must_use]
+    pub fn open_submenu_on_hover(mut self, open_on_hover: bool) -> Self {
+        self.open_submenu_on_hover = open_on_hover;
+        self
+    }
+
+    /// Sets an explicit menu container width used for cascading submenu offset calculations.
+    ///
+    /// When `None` (the default), `metrics.min_width` is used.
+    #[must_use]
+    pub fn menu_width(mut self, width: f32) -> Self {
+        self.menu_width = Some(width);
+        self
+    }
+
+    /// Returns the effective width of the menu for positioning cascading popups.
+    #[inline]
+    #[must_use]
+    pub fn effective_width(&self, metrics: &MenuMetrics) -> f32 {
+        self.menu_width.unwrap_or(metrics.min_width)
+    }
+
+    /// Opens the cascading submenu for `item_id` with smooth spring animation.
+    pub fn open_submenu(&mut self, item_id: usize) {
+        if self.has_submenu(item_id) {
+            self.active_submenu_item_id = Some(item_id);
+            self.last_submenu_item_id = Some(item_id);
+        }
+    }
+
+    /// Closes any currently active cascading submenu with smooth spring animation.
+    pub fn close_submenu(&mut self) {
+        self.active_submenu_item_id = None;
+    }
+
+    /// Toggles the cascading submenu for `item_id`.
+    pub fn toggle_submenu(&mut self, item_id: usize) {
+        if self.active_submenu_item_id == Some(item_id) {
+            self.close_submenu();
+        } else {
+            self.open_submenu(item_id);
+        }
+    }
+
+    /// Returns `true` if the item with `item_id` has an attached cascading submenu.
+    #[must_use]
+    pub fn has_submenu(&self, item_id: usize) -> bool {
+        self.groups
+            .iter()
+            .flat_map(|g| &g.items)
+            .any(|it| it.id == item_id && it.has_submenu())
+    }
+
+    /// Returns a reference to the attached submenu for `item_id`, if any.
+    #[must_use]
+    pub fn submenu(&self, item_id: usize) -> Option<&MenuModel> {
+        for group in &self.groups {
+            for item in &group.items {
+                if item.id == item_id {
+                    return item.submenu.as_deref();
+                }
+            }
+        }
+        None
+    }
+
+    /// Returns a mutable reference to the attached submenu for `item_id`, if any.
+    pub fn submenu_mut(&mut self, item_id: usize) -> Option<&mut MenuModel> {
+        for group in &mut self.groups {
+            for item in &mut group.items {
+                if item.id == item_id {
+                    return item.submenu.as_deref_mut();
+                }
+            }
+        }
+        None
+    }
+
+    /// Recursively finds a `MenuItem` by `item_id` in this menu or any attached submenus.
+    #[must_use]
+    pub fn find_item(&self, item_id: usize) -> Option<&MenuItem> {
+        for group in &self.groups {
+            for item in &group.items {
+                if item.id == item_id {
+                    return Some(item);
+                }
+                if let Some(ref sub) = item.submenu
+                    && let Some(found) = sub.find_item(item_id)
+                {
+                    return Some(found);
+                }
+            }
+        }
+        None
+    }
+
+    /// Returns `true` if this menu or any attached submenu contains the given `item_id`.
+    #[must_use]
+    pub fn contains_item(&self, item_id: usize) -> bool {
+        self.find_item(item_id).is_some()
+    }
+
+    /// Computes the vertical offset `(top_y, height)` of the item with `target_id` relative to the menu root.
+    #[must_use]
+    pub fn item_offset_in_menu(&self, target_id: usize, metrics: &MenuMetrics) -> Option<(f32, f32)> {
+        let mut current_y = 0.0;
+        let total_groups = self.groups.len();
+
+        for (g_idx, group) in self.groups.iter().enumerate() {
+            let mut group_y = current_y;
+            if self.variant == MenuVariant::GroupedCards || g_idx == 0 {
+                group_y += metrics.container_padding_y;
+            }
+
+            if group.header.is_some() {
+                group_y += metrics.header_font_size + 8.0;
+            }
+
+            for item in &group.items {
+                let h = if item.supporting_text.is_some() {
+                    metrics.item_height_double
+                } else {
+                    metrics.item_height_single
+                };
+                if item.id == target_id {
+                    return Some((group_y, h));
+                }
+                group_y += h + metrics.item_gap;
+            }
+
+            let group_items_h: f32 = group
+                .items
+                .iter()
+                .map(|it| {
+                    if it.supporting_text.is_some() {
+                        metrics.item_height_double
+                    } else {
+                        metrics.item_height_single
+                    }
+                })
+                .sum();
+            let gaps_h = (group.items.len().saturating_sub(1) as f32) * metrics.item_gap;
+            let header_h = if group.header.is_some() {
+                metrics.header_font_size + 8.0
+            } else {
+                0.0
+            };
+
+            match self.variant {
+                MenuVariant::GroupedCards => {
+                    let card_h = 2.0 * metrics.container_padding_y + header_h + group_items_h + gaps_h;
+                    current_y += card_h + metrics.group_gap;
+                }
+                MenuVariant::UnifiedCard => {
+                    current_y += header_h + group_items_h + gaps_h;
+                    if g_idx < total_groups - 1 {
+                        current_y += 9.0;
+                    }
+                }
+            }
+        }
+
+        None
     }
 
     /// Sets whether gliding indicators link smoothly across group boundaries.
@@ -898,13 +1245,27 @@ impl MenuModel {
     }
 
     /// Clears any active hover state across all menu groups.
+    ///
+    /// If an item currently has an active cascading submenu open, that item's hover highlight
+    /// is preserved so the parent item remains visibly active while navigating inside the submenu
+    /// (matching reference design Callout 6).
     pub fn clear_hover(&mut self) {
         self.last_hovered_group_idx = None;
         for group in &mut self.groups {
-            group.hovered_item_id = None;
-            group.hover_exit_target_y = None;
-            for it in &mut group.items {
-                it.is_hovered = false;
+            if let Some(sub_id) = self.active_submenu_item_id
+                && group.items.iter().any(|it| it.id == sub_id)
+            {
+                group.hovered_item_id = Some(sub_id);
+                group.hover_exit_target_y = None;
+                for it in &mut group.items {
+                    it.is_hovered = it.id == sub_id;
+                }
+            } else {
+                group.hovered_item_id = None;
+                group.hover_exit_target_y = None;
+                for it in &mut group.items {
+                    it.is_hovered = false;
+                }
             }
         }
     }
@@ -931,7 +1292,8 @@ impl MenuModel {
         }
     }
 
-    /// Advances spring physics by `dt` seconds for menu transition, gliding indicator pills, and item state layers.
+    /// Advances spring physics by `dt` seconds for menu transition, gliding indicator pills,
+    /// cascading popup submenus, and item state layers.
     /// Returns `true` if any spring is still animating and needs another frame.
     pub fn step(&mut self, dt: f32) -> bool {
         let target = if self.is_open { 1.0 } else { 0.0 };
@@ -947,7 +1309,32 @@ impl MenuModel {
             }
         }
 
-        menu_animating || groups_animating
+        // Advance cascading submenu popup spring
+        let sub_target = if self.active_submenu_item_id.is_some() { 1.0 } else { 0.0 };
+        self.submenu_progress = spring_step(spring, self.submenu_progress, sub_target, dt);
+        let submenu_animating = !self.submenu_progress.is_settled(sub_target, 0.002, 0.005);
+
+        // When closed and settled, clear last_submenu_item_id to complete unmounting
+        if self.active_submenu_item_id.is_none()
+            && self.submenu_progress.pos <= 0.002
+            && self.submenu_progress.vel.abs() <= 0.005
+        {
+            self.last_submenu_item_id = None;
+        }
+
+        // Recursively step springs for all attached submenus
+        let mut submenus_animating = false;
+        for group in &mut self.groups {
+            for item in &mut group.items {
+                if let Some(ref mut sub) = item.submenu
+                    && sub.step(dt)
+                {
+                    submenus_animating = true;
+                }
+            }
+        }
+
+        menu_animating || groups_animating || submenu_animating || submenus_animating
     }
 
     /// Advance spring animations, requesting an animation frame if unsettled.
@@ -1137,10 +1524,13 @@ impl MenuModel {
 
         let progress = self.open_progress.pos.clamp(0.0, 1.0);
         let opacity = progress;
+        let menu_w = self.effective_width(&metrics);
 
         let root = div()
+            .relative()
             .flex()
             .flex_col()
+            .w(px(menu_w))
             .min_w(px(metrics.min_width))
             .max_w(px(metrics.max_width))
             .opacity(opacity)
@@ -1148,7 +1538,7 @@ impl MenuModel {
                 d.invisible().size_0().overflow_hidden()
             });
 
-        match self.variant {
+        let mut container = match self.variant {
             MenuVariant::GroupedCards => {
                 // Stacked separate cards with group_gap (callout 10)
                 let mut container = root.gap(px(metrics.group_gap));
@@ -1162,6 +1552,7 @@ impl MenuModel {
             MenuVariant::UnifiedCard => {
                 // Single unified card with dividers between groups (callout 11)
                 let mut card = div()
+                    .w_full()
                     .flex()
                     .flex_col()
                     .bg(colors.container)
@@ -1185,12 +1576,47 @@ impl MenuModel {
                 }
                 root.child(card)
             }
+        };
+
+        // Render cascading submenu popup if open or during spring exit transition
+        let active_sub_id = self.active_submenu_item_id.or(self.last_submenu_item_id);
+        let sub_p = self.submenu_progress.pos;
+        if let Some(sub_item_id) = active_sub_id
+            && sub_p > 0.001
+            && let Some(sub_model) = self.submenu(sub_item_id)
+        {
+            let sub_metrics = sub_model.custom_metrics.unwrap_or(metrics);
+            let sub_w = sub_model.effective_width(&sub_metrics);
+            let (item_y, _) = self.item_offset_in_menu(sub_item_id, &metrics).unwrap_or((0.0, 44.0));
+            let top_y = (item_y + self.submenu_offset_y).max(0.0);
+            let sub_opacity = sub_p.clamp(0.0, 1.0);
+            let slide_y = 8.0 * (1.0 - sub_p.clamp(0.0, 1.0));
+            let popup_left = match self.submenu_placement {
+                SubmenuPlacement::Right => menu_w - self.submenu_overlap,
+                SubmenuPlacement::Left => -sub_w + self.submenu_overlap,
+            };
+
+            let sub_card = div()
+                .id(("m3-cascading-submenu-static", sub_item_id))
+                .absolute()
+                .top(px(top_y + slide_y))
+                .left(px(popup_left))
+                .w(px(sub_w))
+                .shadow(Self::submenu_box_shadow(self.submenu_placement))
+                .rounded(px(sub_metrics.container_corner))
+                .opacity(sub_opacity)
+                .child(sub_model.render(pal));
+
+            container = container.child(sub_card);
         }
+
+        container
     }
 
     /// Renders the menu with built-in interactive spring animations:
     /// - Smooth gliding hover indicator pill sliding down the line between items
     /// - Tactile click micro-interaction with spring press compression and release bounce
+    /// - Cascading popup submenu with overlapping positioning, elevation shadow, and spring physics
     /// - Automatic animation frame scheduling and view notification
     pub fn render_interactive<V: 'static>(
         &self,
@@ -1204,11 +1630,14 @@ impl MenuModel {
 
         let progress = self.open_progress.pos.clamp(0.0, 1.0);
         let opacity = progress;
+        let menu_w = self.effective_width(&metrics);
 
         let root = div()
             .id("m3-menu-root-interactive")
+            .relative()
             .flex()
             .flex_col()
+            .w(px(menu_w))
             .min_w(px(metrics.min_width))
             .max_w(px(metrics.max_width))
             .opacity(opacity)
@@ -1218,17 +1647,19 @@ impl MenuModel {
             .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
                 if !*hovered {
                     menu_accessor(this).clear_hover();
+                    menu_accessor(this).close_submenu();
                     cx.notify();
                 }
             }));
 
-        match self.variant {
+        let mut container = match self.variant {
             MenuVariant::GroupedCards => {
                 let mut container = root.gap(px(metrics.group_gap));
                 let total = self.groups.len();
                 for (ix, group) in self.groups.iter().enumerate() {
                     let card_radii = Self::group_card_radii(ix, total, &metrics);
                     let card = div()
+                        .w_full()
                         .flex()
                         .flex_col()
                         .bg(colors.container)
@@ -1238,13 +1669,14 @@ impl MenuModel {
                         .rounded_bl(px(card_radii.3))
                         .p(px(metrics.container_padding_y))
                         .shadow_md()
-                        .child(self.render_group_interactive(group, card_radii, &metrics, &colors, cx, menu_accessor, on_click));
+                        .child(self.render_group_interactive(group, None, card_radii, &metrics, &colors, cx, menu_accessor, on_click));
                     container = container.child(card);
                 }
                 container
             }
             MenuVariant::UnifiedCard => {
                 let mut card = div()
+                    .w_full()
                     .flex()
                     .flex_col()
                     .bg(colors.container)
@@ -1258,23 +1690,101 @@ impl MenuModel {
                     if ix > 0 {
                         card = card.child(
                             div()
+                                .w_full()
                                 .my(px(4.0))
                                 .mx(px(6.0))
                                 .h(px(1.0))
                                 .bg(colors.divider),
                         );
                     }
-                    card = card.child(self.render_group_interactive(group, card_radii, &metrics, &colors, cx, menu_accessor, on_click));
+                    card = card.child(self.render_group_interactive(group, None, card_radii, &metrics, &colors, cx, menu_accessor, on_click));
                 }
                 root.child(card)
             }
+        };
+
+        // Render cascading submenu popup if open or during spring exit transition
+        let active_sub_id = self.active_submenu_item_id.or(self.last_submenu_item_id);
+        let sub_p = self.submenu_progress.pos;
+        if let Some(sub_item_id) = active_sub_id
+            && sub_p > 0.001
+            && let Some(sub_model) = self.submenu(sub_item_id)
+        {
+            let sub_metrics = sub_model.custom_metrics.unwrap_or(metrics);
+            let sub_colors = sub_model.custom_colors.unwrap_or(colors);
+            let sub_w = sub_model.effective_width(&sub_metrics);
+
+            let (item_y, _) = self.item_offset_in_menu(sub_item_id, &metrics).unwrap_or((0.0, 44.0));
+            let top_y = (item_y + self.submenu_offset_y).max(0.0);
+            let sub_opacity = sub_p.clamp(0.0, 1.0);
+            let slide_y = 8.0 * (1.0 - sub_p.clamp(0.0, 1.0));
+            let popup_left = match self.submenu_placement {
+                SubmenuPlacement::Right => menu_w - self.submenu_overlap,
+                SubmenuPlacement::Left => -sub_w + self.submenu_overlap,
+            };
+
+            let mut submenu_card = div()
+                .id(("m3-cascading-submenu-popup", sub_item_id))
+                .absolute()
+                .top(px(top_y + slide_y))
+                .left(px(popup_left))
+                .w(px(sub_w))
+                .min_w(px(sub_metrics.min_width))
+                .max_w(px(sub_metrics.max_width))
+                .bg(sub_colors.container)
+                .rounded(px(sub_metrics.container_corner))
+                .p(px(sub_metrics.container_padding_y))
+                .shadow(Self::submenu_box_shadow(self.submenu_placement))
+                .opacity(sub_opacity)
+                .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
+                    if !*hovered
+                        && let Some(sub) = menu_accessor(this).submenu_mut(sub_item_id)
+                    {
+                        sub.clear_hover();
+                        cx.notify();
+                    }
+                }));
+
+            let total_sub_groups = sub_model.groups.len();
+            for (g_ix, sub_group) in sub_model.groups.iter().enumerate() {
+                let card_radii = match sub_model.variant {
+                    MenuVariant::GroupedCards => Self::group_card_radii(g_ix, total_sub_groups, &sub_metrics),
+                    MenuVariant::UnifiedCard => Self::unified_group_card_radii(g_ix, total_sub_groups, &sub_metrics),
+                };
+                if sub_model.variant == MenuVariant::UnifiedCard && g_ix > 0 {
+                    submenu_card = submenu_card.child(
+                        div()
+                            .w_full()
+                            .my(px(4.0))
+                            .mx(px(6.0))
+                            .h(px(1.0))
+                            .bg(sub_colors.divider),
+                    );
+                }
+                let group_elem = self.render_group_interactive(
+                    sub_group,
+                    Some(sub_item_id),
+                    card_radii,
+                    &sub_metrics,
+                    &sub_colors,
+                    cx,
+                    menu_accessor,
+                    on_click,
+                );
+                submenu_card = submenu_card.child(group_elem);
+            }
+
+            container = container.child(submenu_card);
         }
+
+        container
     }
 
     #[allow(clippy::too_many_arguments)]
     fn render_group_interactive<V: 'static>(
         &self,
         group: &MenuGroup,
+        sub_item_id: Option<usize>,
         card_radii: (f32, f32, f32, f32),
         metrics: &MenuMetrics,
         colors: &MenuColors,
@@ -1282,7 +1792,7 @@ impl MenuModel {
         menu_accessor: impl Fn(&mut V) -> &mut MenuModel + 'static + Copy,
         on_click: impl Fn(&mut V, usize, &mut Context<V>) + 'static + Copy,
     ) -> impl IntoElement {
-        let mut col = div().flex().flex_col().gap_1();
+        let mut col = div().w_full().flex().flex_col().gap_1();
 
         if let Some(ref header) = group.header {
             col = col.child(
@@ -1296,7 +1806,7 @@ impl MenuModel {
             );
         }
 
-        let mut items_box = div().relative().flex().flex_col().gap(px(metrics.item_gap));
+        let mut items_box = div().w_full().relative().flex().flex_col().gap(px(metrics.item_gap));
 
         // 1. Gliding selected indicator pill (accent/selected_container background)
         let sel_opacity = group.selected_indicator_opacity.pos.clamp(0.0, 1.0);
@@ -1359,27 +1869,64 @@ impl MenuModel {
             let item_element = self.render_item_with_radii(item, metrics, colors, item_radii);
             let interactive_item = div()
                 .id(("m3-menu-item-wrap", item_id))
+                .w_full()
                 .cursor_pointer()
                 .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
                     if *hovered {
-                        menu_accessor(this).hover_item(item_id, true);
+                        if let Some(parent_id) = sub_item_id {
+                            if let Some(sub) = menu_accessor(this).submenu_mut(parent_id) {
+                                sub.hover_item(item_id, true);
+                            }
+                        } else {
+                            menu_accessor(this).hover_item(item_id, true);
+                            if menu_accessor(this).open_submenu_on_hover {
+                                if menu_accessor(this).has_submenu(item_id) {
+                                    menu_accessor(this).open_submenu(item_id);
+                                } else {
+                                    menu_accessor(this).close_submenu();
+                                }
+                            }
+                        }
                         cx.notify();
                     } else if !menu_accessor(this).link_group_indicators {
-                        menu_accessor(this).hover_item(item_id, false);
+                        if let Some(parent_id) = sub_item_id {
+                            if let Some(sub) = menu_accessor(this).submenu_mut(parent_id) {
+                                sub.hover_item(item_id, false);
+                            }
+                        } else {
+                            menu_accessor(this).hover_item(item_id, false);
+                        }
                         cx.notify();
                     }
                 }))
                 .on_mouse_down(
                     gpui::MouseButton::Left,
                     cx.listener(move |this, _, _, cx| {
-                        menu_accessor(this).press_item(item_id, true);
+                        if let Some(parent_id) = sub_item_id {
+                            if let Some(sub) = menu_accessor(this).submenu_mut(parent_id) {
+                                sub.press_item(item_id, true);
+                            }
+                        } else {
+                            menu_accessor(this).press_item(item_id, true);
+                        }
                         cx.notify();
                     }),
                 )
                 .on_mouse_up(
                     gpui::MouseButton::Left,
                     cx.listener(move |this, _, _, cx| {
-                        menu_accessor(this).press_item(item_id, false);
+                        if let Some(parent_id) = sub_item_id {
+                            if let Some(sub) = menu_accessor(this).submenu_mut(parent_id) {
+                                sub.press_item(item_id, false);
+                            }
+                        } else {
+                            menu_accessor(this).press_item(item_id, false);
+                            if menu_accessor(this).has_submenu(item_id) {
+                                menu_accessor(this).toggle_submenu(item_id);
+                            } else {
+                                menu_accessor(this).close_submenu();
+                            }
+                        }
                         on_click(this, item_id, cx);
                         cx.notify();
                     }),
@@ -1387,7 +1934,13 @@ impl MenuModel {
                 .on_mouse_up_out(
                     gpui::MouseButton::Left,
                     cx.listener(move |this, _, _, cx| {
-                        menu_accessor(this).press_item(item_id, false);
+                        if let Some(parent_id) = sub_item_id {
+                            if let Some(sub) = menu_accessor(this).submenu_mut(parent_id) {
+                                sub.press_item(item_id, false);
+                            }
+                        } else {
+                            menu_accessor(this).press_item(item_id, false);
+                        }
                         cx.notify();
                     }),
                 )
@@ -1411,10 +1964,13 @@ impl MenuModel {
 
         let progress = self.open_progress.pos.clamp(0.0, 1.0);
         let opacity = progress;
+        let menu_w = self.effective_width(&metrics);
 
         let root = div()
+            .relative()
             .flex()
             .flex_col()
+            .w(px(menu_w))
             .min_w(px(metrics.min_width))
             .max_w(px(metrics.max_width))
             .opacity(opacity)
@@ -1422,13 +1978,14 @@ impl MenuModel {
                 d.invisible().size_0().overflow_hidden()
             });
 
-        match self.variant {
+        let mut container = match self.variant {
             MenuVariant::GroupedCards => {
                 let mut container = root.gap(px(metrics.group_gap));
                 let total = self.groups.len();
                 for (ix, group) in self.groups.iter().enumerate() {
                     let card_radii = Self::group_card_radii(ix, total, &metrics);
                     let card = div()
+                        .w_full()
                         .flex()
                         .flex_col()
                         .bg(colors.container)
@@ -1445,6 +2002,7 @@ impl MenuModel {
             }
             MenuVariant::UnifiedCard => {
                 let mut card = div()
+                    .w_full()
                     .flex()
                     .flex_col()
                     .bg(colors.container)
@@ -1458,6 +2016,7 @@ impl MenuModel {
                     if ix > 0 {
                         card = card.child(
                             div()
+                                .w_full()
                                 .my(px(4.0))
                                 .mx(px(6.0))
                                 .h(px(1.0))
@@ -1468,7 +2027,41 @@ impl MenuModel {
                 }
                 root.child(card)
             }
+        };
+
+        // Render cascading submenu popup if open or during spring exit transition
+        let active_sub_id = self.active_submenu_item_id.or(self.last_submenu_item_id);
+        let sub_p = self.submenu_progress.pos;
+        if let Some(sub_item_id) = active_sub_id
+            && sub_p > 0.001
+            && let Some(sub_model) = self.submenu(sub_item_id)
+        {
+            let sub_metrics = sub_model.custom_metrics.unwrap_or(metrics);
+            let sub_w = sub_model.effective_width(&sub_metrics);
+            let (item_y, _) = self.item_offset_in_menu(sub_item_id, &metrics).unwrap_or((0.0, 44.0));
+            let top_y = (item_y + self.submenu_offset_y).max(0.0);
+            let sub_opacity = sub_p.clamp(0.0, 1.0);
+            let slide_y = 8.0 * (1.0 - sub_p.clamp(0.0, 1.0));
+            let popup_left = match self.submenu_placement {
+                SubmenuPlacement::Right => menu_w - self.submenu_overlap,
+                SubmenuPlacement::Left => -sub_w + self.submenu_overlap,
+            };
+
+            let sub_card = div()
+                .id(("m3-cascading-submenu-handlers", sub_item_id))
+                .absolute()
+                .top(px(top_y + slide_y))
+                .left(px(popup_left))
+                .w(px(sub_w))
+                .shadow(Self::submenu_box_shadow(self.submenu_placement))
+                .rounded(px(sub_metrics.container_corner))
+                .opacity(sub_opacity)
+                .child(sub_model.render_with_handlers(pal, cx, on_click));
+
+            container = container.child(sub_card);
         }
+
+        container
     }
 
     fn render_group_with_handlers<V: 'static>(
@@ -1480,7 +2073,7 @@ impl MenuModel {
         cx: &Context<V>,
         on_click: impl Fn(&mut V, usize, &mut Context<V>) + 'static + Copy,
     ) -> impl IntoElement {
-        let mut col = div().flex().flex_col().gap_1();
+        let mut col = div().w_full().flex().flex_col().gap_1();
 
         if let Some(ref header) = group.header {
             col = col.child(
@@ -1494,7 +2087,7 @@ impl MenuModel {
             );
         }
 
-        let mut items_box = div().relative().flex().flex_col().gap(px(metrics.item_gap));
+        let mut items_box = div().w_full().relative().flex().flex_col().gap(px(metrics.item_gap));
 
         // 1. Gliding selected indicator pill
         let sel_opacity = group.selected_indicator_opacity.pos.clamp(0.0, 1.0);
@@ -1557,6 +2150,7 @@ impl MenuModel {
             let item_element = self.render_item_with_radii(item, metrics, colors, item_radii);
             let interactive_item = div()
                 .id(("m3-menu-item-wrap", item_id))
+                .w_full()
                 .cursor_pointer()
                 .on_mouse_down(
                     gpui::MouseButton::Left,
@@ -1583,6 +2177,7 @@ impl MenuModel {
     ) -> impl IntoElement {
         let (tl, tr, br, bl) = Self::group_card_radii(ix, total, metrics);
         div()
+            .w_full()
             .flex()
             .flex_col()
             .bg(colors.container)
@@ -1604,7 +2199,7 @@ impl MenuModel {
         colors: &MenuColors,
         _pal: &M3Palette,
     ) -> impl IntoElement {
-        let mut col = div().flex().flex_col().gap_1();
+        let mut col = div().w_full().flex().flex_col().gap_1();
 
         // Optional section header (callout 9)
         if let Some(ref header) = group.header {
@@ -1619,7 +2214,7 @@ impl MenuModel {
             );
         }
 
-        let mut items_box = div().relative().flex().flex_col().gap(px(metrics.item_gap));
+        let mut items_box = div().w_full().relative().flex().flex_col().gap(px(metrics.item_gap));
 
         // 1. Gliding selected indicator pill
         let sel_opacity = group.selected_indicator_opacity.pos.clamp(0.0, 1.0);
@@ -1719,6 +2314,7 @@ impl MenuModel {
         let mut row = div()
             .id(("m3-menu-item", item.id))
             .relative()
+            .w_full()
             .flex()
             .items_center()
             .justify_between()
@@ -2277,5 +2873,203 @@ mod tests {
         // When match_inner_corners = false, bottom corners stay 12.0
         let r_bot_unmatched = MenuModel::interpolated_item_radii(92.0, &group, card_radii, &metrics, false);
         assert_eq!(r_bot_unmatched, (12.0, 12.0, 12.0, 12.0));
+    }
+
+    #[test]
+    fn submenu_attachment_and_chevron_default() {
+        let sub = MenuModel::new([
+            MenuGroup::new().items([
+                MenuItem::new(201, "Sub 1"),
+                MenuItem::new(202, "Sub 2"),
+            ])
+        ]);
+
+        // Attaching submenu should automatically set Chevron when trailing was None
+        let item = MenuItem::new(102, "Item 2").submenu(sub.clone());
+        assert!(item.has_submenu());
+        assert_eq!(item.trailing, MenuItemTrailing::Chevron);
+
+        // Attaching submenu should preserve custom trailing if already set
+        let item_with_shortcut = MenuItem::new(103, "Item 3")
+            .shortcut("⌘S")
+            .submenu(sub);
+        assert!(item_with_shortcut.has_submenu());
+        assert_eq!(item_with_shortcut.trailing, MenuItemTrailing::Shortcut("⌘S"));
+    }
+
+    #[test]
+    fn submenu_open_close_toggle_state() {
+        let sub = MenuModel::new([
+            MenuGroup::new().items([
+                MenuItem::new(201, "Sub 1"),
+                MenuItem::new(202, "Sub 2"),
+            ])
+        ]);
+        let mut menu = MenuModel::new([
+            MenuGroup::new().items([
+                MenuItem::new(101, "Item 1"),
+                MenuItem::new(102, "Item 2").submenu(sub),
+                MenuItem::new(103, "Item 3"),
+            ])
+        ]);
+
+        assert!(menu.has_submenu(102));
+        assert!(!menu.has_submenu(101));
+        assert!(menu.active_submenu_item_id.is_none());
+
+        // Open submenu
+        menu.open_submenu(102);
+        assert_eq!(menu.active_submenu_item_id, Some(102));
+        assert_eq!(menu.last_submenu_item_id, Some(102));
+
+        // Toggle closes it
+        menu.toggle_submenu(102);
+        assert!(menu.active_submenu_item_id.is_none());
+        assert_eq!(menu.last_submenu_item_id, Some(102)); // preserved for exit animation!
+
+        // Toggle opens it again
+        menu.toggle_submenu(102);
+        assert_eq!(menu.active_submenu_item_id, Some(102));
+
+        // Close submenu explicitly
+        menu.close_submenu();
+        assert!(menu.active_submenu_item_id.is_none());
+        assert_eq!(menu.last_submenu_item_id, Some(102));
+    }
+
+    #[test]
+    fn submenu_spring_advances_and_settles() {
+        let sub = MenuModel::new([
+            MenuGroup::new().items([
+                MenuItem::new(201, "Sub 1"),
+            ])
+        ]);
+        let mut menu = MenuModel::new([
+            MenuGroup::new().items([
+                MenuItem::new(101, "Item 1").submenu(sub),
+            ])
+        ]);
+
+        // Initially closed
+        assert_eq!(menu.submenu_progress.pos, 0.0);
+
+        // Open
+        menu.open_submenu(101);
+        for _ in 0..40 {
+            menu.step(1.0 / 60.0);
+        }
+        assert!((menu.submenu_progress.pos - 1.0).abs() < 0.05);
+
+        // Close
+        menu.close_submenu();
+        for _ in 0..60 {
+            menu.step(1.0 / 60.0);
+        }
+        assert!(menu.submenu_progress.pos < 0.01);
+        assert!(menu.last_submenu_item_id.is_none()); // unmounted after settling!
+    }
+
+    #[test]
+    fn submenu_recursive_stepping() {
+        let mut sub = MenuModel::new([
+            MenuGroup::new().items([
+                MenuItem::new(201, "Sub 1"),
+                MenuItem::new(202, "Sub 2"),
+            ])
+        ]);
+        sub.hover_item(202, true);
+
+        let mut menu = MenuModel::new([
+            MenuGroup::new().items([
+                MenuItem::new(101, "Item 1").submenu(sub),
+            ])
+        ]);
+
+        // Stepping parent menu should recursively step child submenu springs
+        let animating = menu.step(1.0 / 60.0);
+        assert!(animating);
+        let child_sub = menu.submenu(101).unwrap();
+        assert!(child_sub.groups[0].indicator_opacity.pos > 0.0);
+    }
+
+    #[test]
+    fn item_offset_in_menu_grouped_and_unified() {
+        let metrics = MenuMetrics::default();
+        let group1 = MenuGroup::new().items([
+            MenuItem::new(1, "Item 1"),
+            MenuItem::new(2, "Item 2"),
+        ]);
+        let group2 = MenuGroup::new().items([
+            MenuItem::new(3, "Item 3"),
+        ]);
+
+        // GroupedCards
+        let menu_grouped = MenuModel::new([group1.clone(), group2.clone()]);
+        let (y1, h1) = menu_grouped.item_offset_in_menu(1, &metrics).unwrap();
+        assert_eq!(y1, metrics.container_padding_y);
+        assert_eq!(h1, 44.0);
+
+        let (y2, h2) = menu_grouped.item_offset_in_menu(2, &metrics).unwrap();
+        assert_eq!(y2, metrics.container_padding_y + 44.0 + metrics.item_gap);
+        assert_eq!(h2, 44.0);
+
+        // UnifiedCard
+        let menu_unified = MenuModel::new([group1, group2]).variant(MenuVariant::UnifiedCard);
+        let (uy1, uh1) = menu_unified.item_offset_in_menu(1, &metrics).unwrap();
+        assert_eq!(uy1, metrics.container_padding_y);
+        assert_eq!(uh1, 44.0);
+    }
+
+    #[test]
+    fn submenu_find_item_recursive() {
+        let sub = MenuModel::new([
+            MenuGroup::new().items([
+                MenuItem::new(201, "Sub 1"),
+                MenuItem::new(202, "Sub 2"),
+            ])
+        ]);
+        let menu = MenuModel::new([
+            MenuGroup::new().items([
+                MenuItem::new(101, "Item 1"),
+                MenuItem::new(102, "Item 2").submenu(sub),
+            ])
+        ]);
+
+        assert!(menu.contains_item(101));
+        assert!(menu.contains_item(202));
+        assert!(!menu.contains_item(999));
+
+        let found = menu.find_item(202).unwrap();
+        assert_eq!(found.label.as_ref(), "Sub 2");
+    }
+
+    #[test]
+    fn submenu_overlap_and_placement_builders() {
+        let default_menu = MenuModel::new([]);
+        assert_eq!(default_menu.submenu_overlap, 2.0);
+        assert_eq!(default_menu.submenu_offset_y, -4.0);
+
+        let menu = MenuModel::new([])
+            .submenu_overlap(32.0)
+            .submenu_offset_y(-8.0)
+            .submenu_placement(SubmenuPlacement::Left)
+            .open_submenu_on_hover(false)
+            .menu_width(240.0);
+
+        let metrics = MenuMetrics::default();
+        assert_eq!(menu.submenu_overlap, 32.0);
+        assert_eq!(menu.submenu_offset_y, -8.0);
+        assert_eq!(menu.submenu_placement, SubmenuPlacement::Left);
+        assert!(!menu.open_submenu_on_hover);
+        assert_eq!(menu.menu_width, Some(240.0));
+        assert_eq!(menu.effective_width(&metrics), 240.0);
+
+        let shadows_r = MenuModel::submenu_box_shadow(SubmenuPlacement::Right);
+        assert_eq!(shadows_r.len(), 2);
+        assert_eq!(shadows_r[0].offset.x, px(-3.0));
+
+        let shadows_l = MenuModel::submenu_box_shadow(SubmenuPlacement::Left);
+        assert_eq!(shadows_l.len(), 2);
+        assert_eq!(shadows_l[0].offset.x, px(3.0));
     }
 }

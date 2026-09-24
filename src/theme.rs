@@ -73,6 +73,54 @@ pub struct M3Palette {
     pub surface_container_highest: Rgba,
 }
 
+impl M3Palette {
+    /// Linearly interpolate all color tokens between `self` and `other` by parameter `t` [0.0, 1.0].
+    #[must_use]
+    pub fn lerp(&self, other: &Self, t: f32) -> Self {
+        let t = t.clamp(0.0, 1.0);
+        let lerp_rgba = |a: Rgba, b: Rgba| Rgba {
+            r: a.r + (b.r - a.r) * t,
+            g: a.g + (b.g - a.g) * t,
+            b: a.b + (b.b - a.b) * t,
+            a: a.a + (b.a - a.a) * t,
+        };
+        Self {
+            primary: lerp_rgba(self.primary, other.primary),
+            on_primary: lerp_rgba(self.on_primary, other.on_primary),
+            primary_container: lerp_rgba(self.primary_container, other.primary_container),
+            on_primary_container: lerp_rgba(self.on_primary_container, other.on_primary_container),
+            secondary: lerp_rgba(self.secondary, other.secondary),
+            on_secondary: lerp_rgba(self.on_secondary, other.on_secondary),
+            secondary_container: lerp_rgba(self.secondary_container, other.secondary_container),
+            on_secondary_container: lerp_rgba(self.on_secondary_container, other.on_secondary_container),
+            tertiary: lerp_rgba(self.tertiary, other.tertiary),
+            on_tertiary: lerp_rgba(self.on_tertiary, other.on_tertiary),
+            tertiary_container: lerp_rgba(self.tertiary_container, other.tertiary_container),
+            on_tertiary_container: lerp_rgba(self.on_tertiary_container, other.on_tertiary_container),
+            error: lerp_rgba(self.error, other.error),
+            on_error: lerp_rgba(self.on_error, other.on_error),
+            error_container: lerp_rgba(self.error_container, other.error_container),
+            on_error_container: lerp_rgba(self.on_error_container, other.on_error_container),
+            background: lerp_rgba(self.background, other.background),
+            on_background: lerp_rgba(self.on_background, other.on_background),
+            surface: lerp_rgba(self.surface, other.surface),
+            on_surface: lerp_rgba(self.on_surface, other.on_surface),
+            surface_variant: lerp_rgba(self.surface_variant, other.surface_variant),
+            on_surface_variant: lerp_rgba(self.on_surface_variant, other.on_surface_variant),
+            inverse_primary: lerp_rgba(self.inverse_primary, other.inverse_primary),
+            inverse_surface: lerp_rgba(self.inverse_surface, other.inverse_surface),
+            inverse_on_surface: lerp_rgba(self.inverse_on_surface, other.inverse_on_surface),
+            outline: lerp_rgba(self.outline, other.outline),
+            outline_variant: lerp_rgba(self.outline_variant, other.outline_variant),
+            surface_container_lowest: lerp_rgba(self.surface_container_lowest, other.surface_container_lowest),
+            surface_container_low: lerp_rgba(self.surface_container_low, other.surface_container_low),
+            surface_container: lerp_rgba(self.surface_container, other.surface_container),
+            surface_container_high: lerp_rgba(self.surface_container_high, other.surface_container_high),
+            surface_container_highest: lerp_rgba(self.surface_container_highest, other.surface_container_highest),
+        }
+    }
+}
+
 #[inline]
 fn srgb(r: u8, g: u8, b: u8) -> Rgba {
     Rgba {

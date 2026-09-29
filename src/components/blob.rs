@@ -117,9 +117,11 @@ impl DeformSpring {
     /// Advances the spring given the shape's current center and the frame time.
     pub fn step(&mut self, center: Point<Pixels>, dt: f32) -> Deform {
         let Some(prev) = self.prev_center.replace(center) else { return self.value };
-        if !(0.001..=0.1).contains(&dt) {
+        if dt < 0.001 {
             return self.value;
         }
+        // long frames still make progress, clamped so the spring stays stable
+        let dt = dt.min(0.05);
         let vx = f32::from(center.x - prev.x) / dt;
         let vy = f32::from(center.y - prev.y) / dt;
         let speed = (vx * vx + vy * vy).sqrt();
@@ -245,6 +247,30 @@ struct Prepared {
 }
 
 impl Prepared {
+    /// Outline of the (deformed) rounded box, grown by `iso`.
+    fn outline(&self, iso: f32) -> Vec<Point<Pixels>> {
+        let grow = iso / self.min_eig;
+        let (hw, hh) = (self.hw + grow, self.hh + grow);
+        let (i00, i01, i11) = self.inv;
+        // forward deform = inverse of the stored inverse
+        let det = i00 * i11 - i01 * i01;
+        let (m00, m01, m11) = if det.abs() < 1e-6 { (1.0, 0.0, 1.0) } else { (i11 / det, -i01 / det, i00 / det) };
+        let mut pts = Vec::new();
+        // corners clockwise from top left: center offset signs and start angle
+        let corners = [(-1.0f32, -1.0f32, std::f32::consts::PI, self.r[0]), (1.0, -1.0, 1.5 * std::f32::consts::PI, self.r[1]), (1.0, 1.0, 0.0, self.r[2]), (-1.0, 1.0, 0.5 * std::f32::consts::PI, self.r[3])];
+        for (sx, sy, a0, r) in corners {
+            let r = (r + grow).max(0.0).min(hw.min(hh));
+            let (ccx, ccy) = (sx * (hw - r), sy * (hh - r));
+            let n = if r < 0.5 { 1 } else { ((r / 2.0).ceil() as usize).clamp(4, 24) };
+            for k in 0..=n {
+                let a = a0 + std::f32::consts::FRAC_PI_2 * k as f32 / n as f32;
+                let (qx, qy) = (ccx + r * a.cos(), ccy + r * a.sin());
+                pts.push(point(px(self.cx + m00 * qx + m01 * qy), px(self.cy + m01 * qx + m11 * qy)));
+            }
+        }
+        pts
+    }
+
     fn sdf(&self, px_: f32, py: f32) -> f32 {
         let (dx, dy) = (px_ - self.cx, py - self.cy);
         let (i00, i01, i11) = self.inv;
@@ -339,6 +365,11 @@ pub fn blob_contours(rects: &[BlobRect], smoothing: f32, step: f32, iso: f32) ->
     }
     let mut out = Vec::new();
     for members in groups.values() {
+        if let [only] = members.as_slice() {
+            // nothing to merge with: the outline is exact and needs no grid
+            out.push(prepared[*only].1.outline(iso));
+            continue;
+        }
         let shapes: Vec<(usize, Prepared)> = members.iter().map(|&i| prepared[i]).collect();
         let (mut x0, mut y0, mut x1, mut y1) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
         for &i in members {
@@ -355,16 +386,51 @@ pub fn blob_contours(rects: &[BlobRect], smoothing: f32, step: f32, iso: f32) ->
     out
 }
 
+/// The merged SDF on a `vw x vh` vertex grid. It is sampled on a coarse grid first and
+/// only evaluated at full resolution in coarse cells the surface can pass through (the
+/// field is 1-Lipschitz, so a cell whose corners are all farther than its diagonal from
+/// the surface can't contain it); elsewhere the coarse sign is enough.
+#[allow(clippy::too_many_arguments)]
+fn sample_field(shapes: &[(usize, Prepared)], k: f32, iso: f32, x0: f32, y0: f32, vw: usize, vh: usize, step: f32) -> Vec<f32> {
+    const C: usize = 4;
+    let f = |i: usize, j: usize| merged_sdf(shapes, x0 + i as f32 * step, y0 + j as f32 * step, k) - iso;
+    let (cw, ch) = ((vw - 1).div_ceil(C) + 1, (vh - 1).div_ceil(C) + 1);
+    let coarse: Vec<f32> = (0..ch * cw).map(|n| f(((n % cw) * C).min(vw - 1), ((n / cw) * C).min(vh - 1))).collect();
+    let safe = C as f32 * step * std::f32::consts::SQRT_2 * 1.25;
+    let mut field = vec![f32::NAN; vw * vh];
+    for cj in 0..ch - 1 {
+        for ci in 0..cw - 1 {
+            let corners = [coarse[cj * cw + ci], coarse[cj * cw + ci + 1], coarse[(cj + 1) * cw + ci], coarse[(cj + 1) * cw + ci + 1]];
+            if corners.iter().all(|v| v.abs() > safe) {
+                continue;
+            }
+            for j in cj * C..=((cj + 1) * C).min(vh - 1) {
+                for i in ci * C..=((ci + 1) * C).min(vw - 1) {
+                    let n = j * vw + i;
+                    if field[n].is_nan() {
+                        field[n] = f(i, j);
+                    }
+                }
+            }
+        }
+    }
+    for j in 0..vh {
+        for i in 0..vw {
+            let n = j * vw + i;
+            if field[n].is_nan() {
+                let (ci, cj) = (((i + C / 2) / C).min(cw - 1), ((j + C / 2) / C).min(ch - 1));
+                field[n] = coarse[cj * cw + ci];
+            }
+        }
+    }
+    field
+}
+
 /// Marching squares over a `w x h` cell grid starting at `(x0, y0)`.
 #[allow(clippy::too_many_arguments)]
 fn march(shapes: &[(usize, Prepared)], k: f32, iso: f32, x0: f32, y0: f32, w: usize, h: usize, step: f32) -> Vec<Vec<Point<Pixels>>> {
     let (vw, vh) = (w + 1, h + 1);
-    let mut field = vec![0.0f32; vw * vh];
-    for j in 0..vh {
-        for i in 0..vw {
-            field[j * vw + i] = merged_sdf(shapes, x0 + i as f32 * step, y0 + j as f32 * step, k) - iso;
-        }
-    }
+    let field = sample_field(shapes, k, iso, x0, y0, vw, vh, step);
     let v = |i: usize, j: usize| field[j * vw + i];
     let h_id = |i: usize, j: usize| j * w + i;
     let v_id = |i: usize, j: usize| vw * vh + j * vw + i;
@@ -556,5 +622,31 @@ mod tests {
             s.step(point(px(400.0), px(0.0)), 0.016);
         }
         assert!(s.value.is_identity() && !s.is_active(), "settles after stopping ({t})");
+    }
+
+    #[test]
+    fn lone_outline_lies_on_the_surface() {
+        let r = rect(10.0, 20.0, 120.0, 60.0).radii(4.0, 12.0, 20.0, 0.0).deform(Deform { m00: 1.2, m01: 0.1, m11: 0.85 });
+        let p = r.prepared();
+        for pt in p.outline(0.0) {
+            assert!(p.sdf(f32::from(pt.x), f32::from(pt.y)).abs() < 0.05);
+        }
+    }
+
+    #[test]
+    fn coarse_sampling_matches_full_sampling() {
+        let shapes: Vec<(usize, Prepared)> = [rect(0.0, 0.0, 200.0, 40.0).radius(20.0), rect(60.0, 38.0, 90.0, 120.0).radius(16.0)]
+            .iter()
+            .enumerate()
+            .map(|(i, r)| (i, r.prepared()))
+            .collect();
+        let (vw, vh, step) = (140, 110, 2.0);
+        let field = sample_field(&shapes, 18.0, 0.0, -30.0, -30.0, vw, vh, step);
+        for j in 0..vh {
+            for i in 0..vw {
+                let exact = merged_sdf(&shapes, -30.0 + i as f32 * step, -30.0 + j as f32 * step, 18.0);
+                assert_eq!(field[j * vw + i] < 0.0, exact < 0.0, "sign differs at {i},{j}");
+            }
+        }
     }
 }

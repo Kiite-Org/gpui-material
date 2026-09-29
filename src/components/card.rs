@@ -8,8 +8,8 @@
 //! (`FilledCardTokens`, `ElevatedCardTokens`, `OutlinedCardTokens`).
 
 use gpui::{
-    FontWeight, IntoElement, ParentElement, Rgba, SharedString, Styled, Window,
-    div, prelude::*, px,
+    Div, FontWeight, IntoElement, ParentElement, Rgba, SharedString, Stateful, Styled,
+    Window, div, prelude::*, px,
 };
 
 use crate::motion::{SpringParams, SpringState, spring_step};
@@ -137,6 +137,15 @@ impl CardColors {
         }
     }
 
+    /// Filled card colors with `SurfaceContainer` container.
+    #[must_use]
+    pub fn surface_container(p: &M3Palette) -> Self {
+        Self {
+            container: p.surface_container,
+            ..Self::filled(p)
+        }
+    }
+
     /// Elevated card colors: `Surface` container with Level 1 elevation shadow.
     #[must_use]
     pub fn elevated(p: &M3Palette) -> Self {
@@ -243,6 +252,8 @@ pub struct CardModel {
     pub custom_metrics: Option<CardMetrics>,
     /// Optional custom colors override.
     pub custom_colors: Option<CardColors>,
+    /// Optional container background color override.
+    pub container_color: Option<Rgba>,
     /// Optional spring physics override.
     pub custom_spring: Option<SpringParams>,
 }
@@ -271,8 +282,16 @@ impl CardModel {
             media_label: None,
             custom_metrics: None,
             custom_colors: None,
+            container_color: None,
             custom_spring: None,
         }
+    }
+
+    /// Sets a custom container background color override.
+    #[must_use]
+    pub fn container_color(mut self, color: Rgba) -> Self {
+        self.container_color = Some(color);
+        self
     }
 
     /// Sets the visual emphasis variant.
@@ -355,8 +374,13 @@ impl CardModel {
     /// Resolves the effective colors for the given palette.
     #[must_use]
     pub fn resolve_colors(&self, pal: &M3Palette) -> CardColors {
-        self.custom_colors
-            .unwrap_or_else(|| CardColors::for_variant(self.variant, pal))
+        let mut colors = self
+            .custom_colors
+            .unwrap_or_else(|| CardColors::for_variant(self.variant, pal));
+        if let Some(cc) = self.container_color {
+            colors.container = cc;
+        }
+        colors
     }
 
     /// Returns the target corner radius based on press state.
@@ -411,7 +435,7 @@ impl CardModel {
     }
 
     /// Renders the card container wrapping arbitrary custom child content.
-    pub fn render_with<C>(&self, pal: &M3Palette, content: C) -> impl IntoElement
+    pub fn render_with<C>(&self, pal: &M3Palette, content: C) -> Stateful<Div>
     where
         C: IntoElement,
     {
@@ -624,7 +648,7 @@ impl CardModel {
     }
 
     /// Renders the card using its built-in slots (media, title, subhead, body).
-    pub fn render(&self, pal: &M3Palette) -> impl IntoElement {
+    pub fn render(&self, pal: &M3Palette) -> Stateful<Div> {
         let content = self.render_content(pal);
         self.render_with(pal, content)
     }
@@ -718,5 +742,18 @@ mod tests {
         // Disabled card should not morph corner or activate state layer
         assert_eq!(card.target_corner(&card.metrics()), 12.0);
         assert_eq!(card.target_state_layer_alpha(), 0.0);
+    }
+
+    #[test]
+    fn card_container_color_override() {
+        let pal = light_scheme();
+        let card = CardModel::new(4)
+            .variant(CardVariant::Filled)
+            .container_color(pal.surface_container);
+        let resolved = card.resolve_colors(&pal);
+        assert_eq!(resolved.container, pal.surface_container);
+
+        let sc_colors = CardColors::surface_container(&pal);
+        assert_eq!(sc_colors.container, pal.surface_container);
     }
 }

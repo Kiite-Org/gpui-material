@@ -89,7 +89,7 @@ pub use components::shape::{
 #[doc(inline)]
 pub use components::progress_bar::{ProgressBar, ProgressBarColors, ProgressBarMetrics};
 #[doc(inline)]
-pub use components::slider::{SliderColors, SliderMetrics, SliderSpec};
+pub use components::slider::{SliderColors, SliderConfiguration, SliderMetrics, SliderModel, SliderSpec};
 #[doc(inline)]
 pub use components::split_button::{
     SplitButtonColors, SplitButtonMetrics, SplitButtonModel, SplitButtonSize, SplitButtonVariant,

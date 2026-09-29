@@ -31,9 +31,12 @@
 //! ## Components
 //!
 //! - [`button`]: Five sizes, five emphasis styles, round/square shapes, spring corner morphing.
+//! - [`blob`]: Liquid surfaces, rounded rectangles that smooth-merge and squash and stretch.
 //! - [`card`]: Filled, elevated, and outlined cards with spring corner morphing.
+//! - [`carousel`]: M3 center-aligned multi-browse carousel with masking and snapping.
 //! - [`icon`]: Material Symbols icons for menus and buttons.
 //! - [`menu`]: M3 Expressive menus with connected corner shaping, item pills, group gap separation, and nested submenus.
+//! - [`progress_ring`]: Circular progress indicator, the ring form of the progress bar.
 //! - [`shape`]: 35 Material 3 Expressive shapes, point-sampled morphing, and harmonic spring bounce.
 //! - [`slider`]: Continuous and discrete sliders with stepped snap intervals.
 //! - [`split_button`]: Primary action button with a morphing contextual trailing button.
@@ -55,11 +58,14 @@ pub mod motion;
 pub mod theme;
 
 // Top-level module exports
+pub use components::blob;
 pub use components::button;
 pub use components::card;
+pub use components::carousel;
 pub use components::icon;
 pub use components::menu;
 pub use components::progress_bar;
+pub use components::progress_ring;
 pub use components::shape;
 pub use components::slider;
 pub use components::split_button;
@@ -88,6 +94,7 @@ pub use components::shape::{
 };
 #[doc(inline)]
 pub use components::progress_bar::{ProgressBar, ProgressBarColors, ProgressBarMetrics};
+pub use components::progress_ring::{ProgressRing, ProgressRingMetrics};
 #[doc(inline)]
 pub use components::slider::{SliderColors, SliderConfiguration, SliderMetrics, SliderModel, SliderSpec};
 #[doc(inline)]

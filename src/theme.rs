@@ -71,6 +71,10 @@ pub struct M3Palette {
     pub surface_container_high: Rgba,
     /// Highest-elevation container background for switches and elevated surfaces.
     pub surface_container_highest: Rgba,
+    /// The dimmest surface (tone 87 light, 6 dark), e.g. Android's two-pane app bar.
+    pub surface_dim: Rgba,
+    /// The brightest surface (tone 98 light, 24 dark), e.g. Android's settings rows.
+    pub surface_bright: Rgba,
 }
 
 impl M3Palette {
@@ -117,6 +121,8 @@ impl M3Palette {
             surface_container: lerp_rgba(self.surface_container, other.surface_container),
             surface_container_high: lerp_rgba(self.surface_container_high, other.surface_container_high),
             surface_container_highest: lerp_rgba(self.surface_container_highest, other.surface_container_highest),
+            surface_dim: lerp_rgba(self.surface_dim, other.surface_dim),
+            surface_bright: lerp_rgba(self.surface_bright, other.surface_bright),
         }
     }
 }
@@ -171,6 +177,8 @@ pub fn light_scheme() -> M3Palette {
         surface_container: srgb(249, 239, 232),
         surface_container_high: srgb(244, 233, 226),
         surface_container_highest: srgb(245, 225, 212),
+        surface_dim: srgb(236, 224, 216),
+        surface_bright: srgb(255, 248, 245),
     }
 }
 
@@ -215,6 +223,8 @@ pub fn dark_scheme() -> M3Palette {
         surface_container: srgb(32, 29, 36),
         surface_container_high: srgb(36, 33, 41),
         surface_container_highest: srgb(40, 37, 46),
+        surface_dim: srgb(18, 16, 22),
+        surface_bright: srgb(56, 52, 62),
     }
 }
 
@@ -264,6 +274,8 @@ impl From<&material_colors::scheme::Scheme> for M3Palette {
             surface_container: argb_to_rgba(s.surface_container),
             surface_container_high: argb_to_rgba(s.surface_container_high),
             surface_container_highest: argb_to_rgba(s.surface_container_highest),
+            surface_dim: argb_to_rgba(s.surface_dim),
+            surface_bright: argb_to_rgba(s.surface_bright),
         }
     }
 }
@@ -302,6 +314,11 @@ struct SerializablePalette {
     surface_container: [f32; 4],
     surface_container_high: [f32; 4],
     surface_container_highest: [f32; 4],
+    // absent from palettes saved before these roles existed
+    #[serde(default)]
+    surface_dim: Option<[f32; 4]>,
+    #[serde(default)]
+    surface_bright: Option<[f32; 4]>,
 }
 
 impl serde::Serialize for M3Palette {
@@ -343,6 +360,8 @@ impl serde::Serialize for M3Palette {
             surface_container: to_arr(self.surface_container),
             surface_container_high: to_arr(self.surface_container_high),
             surface_container_highest: to_arr(self.surface_container_highest),
+            surface_dim: Some(to_arr(self.surface_dim)),
+            surface_bright: Some(to_arr(self.surface_bright)),
         };
         s.serialize(serializer)
     }
@@ -388,6 +407,9 @@ impl<'de> serde::Deserialize<'de> for M3Palette {
             surface_container: from_arr(s.surface_container),
             surface_container_high: from_arr(s.surface_container_high),
             surface_container_highest: from_arr(s.surface_container_highest),
+            // older files: the closest roles they do carry
+            surface_dim: from_arr(s.surface_dim.unwrap_or(s.surface_container_highest)),
+            surface_bright: from_arr(s.surface_bright.unwrap_or(if s.surface[0] + s.surface[1] + s.surface[2] > 1.5 { s.surface_container_lowest } else { s.surface_container_highest })),
         })
     }
 }

@@ -1,10 +1,7 @@
 //! Section 2: Switch models & rendering.
 
-use gpui::{Context, IntoElement, ParentElement, Styled, Window, div, prelude::*, px};
-use gpui_material::{
-    M3Palette, SwitchColors, SwitchMetrics, SwitchModel, animated_icon_segments, draw_switch_icon,
-    thumb_geometry,
-};
+use gpui::{Context, IntoElement, ParentElement, Styled, Window, div, prelude::*};
+use gpui_material::{M3Palette, SwitchModel};
 
 use crate::Showcase;
 
@@ -54,8 +51,6 @@ impl Showcase {
         pal: &M3Palette,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let sw_colors = SwitchColors::from_palette(pal, self.dark_theme);
-        let sw_metrics = SwitchMetrics::default();
 
         div()
             .flex_col()
@@ -91,14 +86,6 @@ impl Showcase {
                     .flex_col()
                     .gap_3()
                     .children(self.switches.iter().enumerate().map(|(ix, sw)| {
-                        let pos = sw.display_pos.pos.clamp(0.0, 1.0);
-                        let press_factor = sw.press_pos.pos.clamp(0.0, 1.0);
-                        let (thumb_left, thumb_w) = thumb_geometry(&sw_metrics, pos, press_factor);
-                        let (track_c, thumb_c, icon_c, state_c, state_opacity) =
-                            sw.resolve_colors(&sw_colors);
-                        let (seg1, seg2) = animated_icon_segments(pos, press_factor);
-                        let show_icons = sw.show_icons;
-
                         div()
                             .flex()
                             .justify_between()
@@ -107,40 +94,21 @@ impl Showcase {
                             .child(
                                 div()
                                     .flex_col()
-                                    .child(
-                                        div()
-                                            .text_sm()
-                                            .font_weight(gpui::FontWeight::MEDIUM)
-                                            .child(sw.label.clone()),
-                                    )
-                                    .child(
-                                        div().text_xs().text_color(pal.on_surface_variant).child(
-                                            if !sw.enabled {
-                                                "Disabled"
-                                            } else if sw.checked {
-                                                "On"
-                                            } else {
-                                                "Off"
-                                            },
-                                        ),
-                                    ),
+                                    .child(div().text_sm().font_weight(gpui::FontWeight::MEDIUM).child(sw.label.clone()))
+                                    .child(div().text_xs().text_color(pal.on_surface_variant).child(if !sw.enabled {
+                                        "Disabled"
+                                    } else if sw.checked {
+                                        "On"
+                                    } else {
+                                        "Off"
+                                    })),
                             )
                             .child(
                                 div()
                                     .id(("m3-switch", ix))
-                                    .relative()
-                                    .w(px(sw_metrics.track_width))
-                                    .h(px(sw_metrics.track_height))
-                                    .rounded_full()
-                                    .bg(track_c)
-                                    .when(!sw.enabled, |d| d.opacity(0.38).cursor_not_allowed())
                                     .when(sw.enabled, |d| d.cursor_pointer())
-                                    .on_mouse_down(
-                                        gpui::MouseButton::Left,
-                                        cx.listener(move |this, _, _, cx| {
-                                            this.press_switch(ix, true, cx);
-                                        }),
-                                    )
+                                    .when(!sw.enabled, |d| d.cursor_not_allowed())
+                                    .on_mouse_down(gpui::MouseButton::Left, cx.listener(move |this, _, _, cx| this.press_switch(ix, true, cx)))
                                     .on_mouse_up(
                                         gpui::MouseButton::Left,
                                         cx.listener(move |this, _, _, cx| {
@@ -148,64 +116,14 @@ impl Showcase {
                                             this.toggle_switch(ix, cx);
                                         }),
                                     )
-                                    .on_mouse_up_out(
-                                        gpui::MouseButton::Left,
-                                        cx.listener(move |this, _, _, cx| {
-                                            this.press_switch(ix, false, cx);
-                                        }),
-                                    )
+                                    .on_mouse_up_out(gpui::MouseButton::Left, cx.listener(move |this, _, _, cx| this.press_switch(ix, false, cx)))
                                     .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
                                         this.hover_switch(ix, *hovered, cx);
                                         if !*hovered {
                                             this.press_switch(ix, false, cx);
                                         }
                                     }))
-                                    .child(
-                                        div()
-                                            .absolute()
-                                            .top(px(2.0))
-                                            .left(px(thumb_left))
-                                            .w(px(thumb_w))
-                                            .h(px(sw_metrics.thumb_height))
-                                            .rounded_full()
-                                            .bg(thumb_c)
-                                            .shadow_sm()
-                                            .overflow_hidden()
-                                            .child(
-                                                div()
-                                                    .absolute()
-                                                    .inset_0()
-                                                    .rounded_full()
-                                                    .bg(state_c)
-                                                    .opacity(state_opacity),
-                                            )
-                                            .when(show_icons, |d| {
-                                                let icon_left =
-                                                    (thumb_w - sw_metrics.icon_size) / 2.0;
-                                                let icon_top =
-                                                    (sw_metrics.thumb_height - sw_metrics.icon_size)
-                                                        / 2.0;
-                                                d.child(
-                                                    gpui::canvas(
-                                                        move |bounds, _window, _cx| {
-                                                            (bounds, seg1, seg2, icon_c)
-                                                        },
-                                                        move |_,
-                                                              (bounds, s1, s2, color),
-                                                              window,
-                                                              _cx| {
-                                                            draw_switch_icon(
-                                                                window, bounds, s1, s2, color,
-                                                            );
-                                                        },
-                                                    )
-                                                    .absolute()
-                                                    .left(px(icon_left))
-                                                    .top(px(icon_top))
-                                                    .size(px(sw_metrics.icon_size)),
-                                                )
-                                            }),
-                                    ),
+                                    .child(sw.render(pal)),
                             )
                     })),
             )

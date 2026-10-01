@@ -8,6 +8,12 @@
 //! on a grid around each cluster of nearby shapes, its zero contour is traced with
 //! marching squares, and the outline is filled as an antialiased path.
 //!
+//! A shape can also melt into a screen edge ([`BlobRect::melt_into`]): where it meets
+//! the edge the field grows a concave fillet against it, so a dock standing on the
+//! bottom of the screen, or a bar hugging its sides, curves into the edge. The fillet is
+//! part of the field, so it follows the shape as it moves, squashes or slides behind the
+//! edge (it shrinks as the shape sinks and wells up as it rises).
+//!
 //! Typical use from a canvas paint callback:
 //!
 //! ```rust,no_run
@@ -159,6 +165,32 @@ impl DeformSpring {
     }
 }
 
+/// A screen edge a shape can melt into, at a coordinate along its axis: `Bottom(1080.0)`
+/// is the line `y = 1080` with the screen above it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Edge {
+    /// The line `x = at`, screen to its right.
+    Left(f32),
+    /// The line `y = at`, screen below it.
+    Top(f32),
+    /// The line `x = at`, screen to its left.
+    Right(f32),
+    /// The line `y = at`, screen above it.
+    Bottom(f32),
+}
+
+impl Edge {
+    /// Distance from the edge into the screen; negative past it.
+    fn inside(self, x: f32, y: f32) -> f32 {
+        match self {
+            Edge::Left(a) => x - a,
+            Edge::Top(a) => y - a,
+            Edge::Right(a) => a - x,
+            Edge::Bottom(a) => a - y,
+        }
+    }
+}
+
 /// One shape of a blob group.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BlobRect {
@@ -171,13 +203,15 @@ pub struct BlobRect {
     /// Bit `i` set: don't smooth-merge with shape `i` of the same slice (shapes only
     /// touch with a hard union).
     pub exclude: u64,
+    /// Edges the shape melts into, each with its fillet radius.
+    pub melt: [Option<(Edge, f32)>; 4],
 }
 
 impl BlobRect {
     /// A shape with square corners.
     #[must_use]
     pub fn new(bounds: Bounds<Pixels>) -> Self {
-        Self { bounds, radii: [0.0; 4], deform: Deform::IDENTITY, exclude: 0 }
+        Self { bounds, radii: [0.0; 4], deform: Deform::IDENTITY, exclude: 0, melt: [None; 4] }
     }
 
     /// Same radius on every corner.
@@ -208,6 +242,16 @@ impl BlobRect {
         self
     }
 
+    /// Melts the shape into `edge`: where it is within `radius` of the edge, a concave
+    /// fillet of that radius joins the two, cut off at the edge itself. Up to four edges.
+    #[must_use]
+    pub fn melt_into(mut self, edge: Edge, radius: f32) -> Self {
+        if let Some(slot) = self.melt.iter_mut().find(|m| m.is_none()) {
+            *slot = Some((edge, radius.max(0.0)));
+        }
+        self
+    }
+
     fn prepared(&self) -> Prepared {
         let (x, y) = (f32::from(self.bounds.origin.x), f32::from(self.bounds.origin.y));
         let (w, h) = (f32::from(self.bounds.size.width), f32::from(self.bounds.size.height));
@@ -226,6 +270,8 @@ impl BlobRect {
             ext_x: w / 2.0 * stretch,
             ext_y: h / 2.0 * stretch,
             exclude: self.exclude,
+            melt: self.melt,
+            reach: self.melt.iter().flatten().map(|m| m.1).fold(0.0, f32::max),
             empty: w < 0.5 || h < 0.5,
         }
     }
@@ -243,6 +289,9 @@ struct Prepared {
     ext_x: f32,
     ext_y: f32,
     exclude: u64,
+    melt: [Option<(Edge, f32)>; 4],
+    /// Largest melt radius: how far past the shape its fillets reach.
+    reach: f32,
     empty: bool,
 }
 
@@ -300,13 +349,24 @@ fn merged_sdf(shapes: &[(usize, Prepared)], x: f32, y: f32, k: f32) -> f32 {
     let mut d = [f32::MAX; 64];
     let mut merged = f32::MAX;
     for (n, (_, s)) in shapes.iter().enumerate().take(64) {
-        if (x - s.cx).abs() > s.ext_x + k * 1.5 + 4.0 || (y - s.cy).abs() > s.ext_y + k * 1.5 + 4.0 {
+        let reach = k.max(s.reach) * 1.5 + 4.0;
+        if (x - s.cx).abs() > s.ext_x + reach || (y - s.cy).abs() > s.ext_y + reach {
             // far away: only matters as "outside"
             d[n] = f32::MAX;
             continue;
         }
         d[n] = s.sdf(x, y);
         merged = merged.min(d[n]);
+        // fillets into the edges it melts into, only on the screen side of each edge
+        for (edge, r) in s.melt.iter().flatten() {
+            if d[n] >= *r {
+                continue;
+            }
+            let de = edge.inside(x, y);
+            if (0.0..*r).contains(&de) {
+                merged = merged.min(smin(d[n], de, *r));
+            }
+        }
     }
     for i in 0..shapes.len().min(64) {
         if d[i] >= k {
@@ -337,9 +397,15 @@ pub fn blob_contours(rects: &[BlobRect], smoothing: f32, step: f32, iso: f32) ->
     let k = smoothing.max(0.5);
     let step = step.max(0.5);
     let prepared: Vec<(usize, Prepared)> = rects.iter().enumerate().map(|(i, r)| (i, r.prepared())).filter(|(_, p)| !p.empty).collect();
-    let pad = k * 1.5 + iso.max(0.0) + step * 2.0;
+    let pad = |p: &Prepared| k.max(p.reach) * 1.5 + iso.max(0.0) + step * 2.0;
     // group shapes whose padded boxes touch, each cluster gets its own grid
-    let boxes: Vec<(f32, f32, f32, f32)> = prepared.iter().map(|(_, p)| (p.cx - p.ext_x - pad, p.cy - p.ext_y - pad, p.cx + p.ext_x + pad, p.cy + p.ext_y + pad)).collect();
+    let boxes: Vec<(f32, f32, f32, f32)> = prepared
+        .iter()
+        .map(|(_, p)| {
+            let pad = pad(p);
+            (p.cx - p.ext_x - pad, p.cy - p.ext_y - pad, p.cx + p.ext_x + pad, p.cy + p.ext_y + pad)
+        })
+        .collect();
     let mut cluster = (0..prepared.len()).collect::<Vec<_>>();
     fn find(c: &mut [usize], i: usize) -> usize {
         let mut i = i;
@@ -367,8 +433,10 @@ pub fn blob_contours(rects: &[BlobRect], smoothing: f32, step: f32, iso: f32) ->
     for members in groups.values() {
         if let [only] = members.as_slice() {
             // nothing to merge with: the outline is exact and needs no grid
-            out.push(prepared[*only].1.outline(iso));
-            continue;
+            if prepared[*only].1.reach <= 0.0 {
+                out.push(prepared[*only].1.outline(iso));
+                continue;
+            }
         }
         let shapes: Vec<(usize, Prepared)> = members.iter().map(|&i| prepared[i]).collect();
         let (mut x0, mut y0, mut x1, mut y1) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
@@ -607,6 +675,32 @@ mod tests {
     fn excluded_shapes_do_not_bridge() {
         let c = blob_contours(&[rect(0.0, 0.0, 100.0, 40.0).exclude(1), rect(30.0, 48.0, 40.0, 40.0)], 20.0, 2.0, 0.0);
         assert_eq!(c.len(), 2);
+    }
+
+    #[test]
+    fn melting_into_an_edge_fills_the_concave_corner() {
+        // a 100x40 shape standing on y = 100, melting into it with 20px fillets
+        let shape = rect(50.0, 60.0, 100.0, 40.0).melt_into(Edge::Bottom(100.0), 20.0);
+        let s = shape.prepared();
+        let field = |x: f32, y: f32| merged_sdf(&[(0, s)], x, y, 4.0);
+        // just outside the corner, inside the fillet: filled
+        assert!(field(46.0, 98.0) < 0.0);
+        // beyond the fillet radius along the edge: empty
+        assert!(field(25.0, 98.0) > 0.0);
+        // past the edge: only the shape itself
+        assert!(field(46.0, 101.0) > 0.0);
+        // and it traces as one outline wider than the shape
+        let c = blob_contours(&[shape], 4.0, 1.0, 0.0);
+        assert_eq!(c.len(), 1);
+        let min_x = c[0].iter().map(|p| f32::from(p.x)).fold(f32::MAX, f32::min);
+        assert!(min_x < 40.0, "fillet should reach out past the shape, got {min_x}");
+    }
+
+    #[test]
+    fn a_shape_away_from_the_edge_is_untouched() {
+        let shape = rect(50.0, 20.0, 100.0, 40.0).melt_into(Edge::Bottom(100.0), 20.0);
+        let s = shape.prepared();
+        assert!(merged_sdf(&[(0, s)], 46.0, 98.0, 4.0) > 0.0);
     }
 
     #[test]

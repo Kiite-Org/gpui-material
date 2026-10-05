@@ -24,9 +24,15 @@
 //! # }
 //! ```
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use gpui::{point, px, Bounds, PathBuilder, Pixels, Point, Rgba, Window};
+
+thread_local! {
+    static FIELD_SCRATCH: RefCell<Vec<f32>> = const { RefCell::new(Vec::new()) };
+    static COARSE_SCRATCH: RefCell<Vec<f32>> = const { RefCell::new(Vec::new()) };
+}
 
 /// A symmetric 2x2 deformation `[[m00, m01], [m01, m11]]` applied around a shape's
 /// center: stretch along one axis, compress along the other.
@@ -252,6 +258,30 @@ impl BlobRect {
         self
     }
 
+    /// True when two shapes are visually identical (within subpixel/epsilon tolerance).
+    pub fn approx_eq(&self, other: &Self) -> bool {
+        let eps = 0.25f32;
+        let bounds_close = (f32::from(self.bounds.origin.x) - f32::from(other.bounds.origin.x)).abs() <= eps
+            && (f32::from(self.bounds.origin.y) - f32::from(other.bounds.origin.y)).abs() <= eps
+            && (f32::from(self.bounds.size.width) - f32::from(other.bounds.size.width)).abs() <= eps
+            && (f32::from(self.bounds.size.height) - f32::from(other.bounds.size.height)).abs() <= eps;
+        if !bounds_close {
+            return false;
+        }
+        for (a, b) in self.radii.iter().zip(&other.radii) {
+            if (a - b).abs() > eps {
+                return false;
+            }
+        }
+        let deform_close = (self.deform.m00 - other.deform.m00).abs() <= 0.002
+            && (self.deform.m01 - other.deform.m01).abs() <= 0.002
+            && (self.deform.m11 - other.deform.m11).abs() <= 0.002;
+        if !deform_close || self.exclude != other.exclude {
+            return false;
+        }
+        self.melt == other.melt
+    }
+
     fn prepared(&self) -> Prepared {
         let (x, y) = (f32::from(self.bounds.origin.x), f32::from(self.bounds.origin.y));
         let (w, h) = (f32::from(self.bounds.size.width), f32::from(self.bounds.size.height));
@@ -390,6 +420,11 @@ fn merged_sdf(shapes: &[(usize, Prepared)], x: f32, y: f32, k: f32) -> f32 {
     }
 }
 
+/// True when two slices of [`BlobRect`] are visually identical (within epsilon tolerance).
+pub fn rects_approx_eq(a: &[BlobRect], b: &[BlobRect]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.approx_eq(y))
+}
+
 /// Outlines of the merged shapes where the field equals `iso` (0 for the surface,
 /// positive values for grown copies, e.g. for soft shadows). `step` is the grid size in
 /// pixels; 2 gives smooth curves.
@@ -459,47 +494,79 @@ pub fn blob_contours(rects: &[BlobRect], smoothing: f32, step: f32, iso: f32) ->
 /// field is 1-Lipschitz, so a cell whose corners are all farther than its diagonal from
 /// the surface can't contain it); elsewhere the coarse sign is enough.
 #[allow(clippy::too_many_arguments)]
-fn sample_field(shapes: &[(usize, Prepared)], k: f32, iso: f32, x0: f32, y0: f32, vw: usize, vh: usize, step: f32) -> Vec<f32> {
+fn with_sampled_field<R>(
+    shapes: &[(usize, Prepared)],
+    k: f32,
+    iso: f32,
+    x0: f32,
+    y0: f32,
+    vw: usize,
+    vh: usize,
+    step: f32,
+    f_action: impl FnOnce(&[f32]) -> R,
+) -> R {
     const C: usize = 4;
     let f = |i: usize, j: usize| merged_sdf(shapes, x0 + i as f32 * step, y0 + j as f32 * step, k) - iso;
     let (cw, ch) = ((vw - 1).div_ceil(C) + 1, (vh - 1).div_ceil(C) + 1);
-    let coarse: Vec<f32> = (0..ch * cw).map(|n| f(((n % cw) * C).min(vw - 1), ((n / cw) * C).min(vh - 1))).collect();
+    let coarse_len = ch * cw;
     let safe = C as f32 * step * std::f32::consts::SQRT_2 * 1.25;
-    let mut field = vec![f32::NAN; vw * vh];
-    for cj in 0..ch - 1 {
-        for ci in 0..cw - 1 {
-            let corners = [coarse[cj * cw + ci], coarse[cj * cw + ci + 1], coarse[(cj + 1) * cw + ci], coarse[(cj + 1) * cw + ci + 1]];
-            if corners.iter().all(|v| v.abs() > safe) {
-                continue;
-            }
-            for j in cj * C..=((cj + 1) * C).min(vh - 1) {
-                for i in ci * C..=((ci + 1) * C).min(vw - 1) {
-                    let n = j * vw + i;
-                    if field[n].is_nan() {
-                        field[n] = f(i, j);
+
+    COARSE_SCRATCH.with(|coarse_cell| {
+        let mut coarse = coarse_cell.borrow_mut();
+        coarse.clear();
+        coarse.reserve(coarse_len);
+        for n in 0..coarse_len {
+            coarse.push(f(((n % cw) * C).min(vw - 1), ((n / cw) * C).min(vh - 1)));
+        }
+
+        FIELD_SCRATCH.with(|field_cell| {
+            let mut field = field_cell.borrow_mut();
+            let total = vw * vh;
+            field.clear();
+            field.resize(total, f32::NAN);
+
+            for cj in 0..ch - 1 {
+                for ci in 0..cw - 1 {
+                    let corners = [coarse[cj * cw + ci], coarse[cj * cw + ci + 1], coarse[(cj + 1) * cw + ci], coarse[(cj + 1) * cw + ci + 1]];
+                    if corners.iter().all(|v| v.abs() > safe) {
+                        continue;
+                    }
+                    for j in cj * C..=((cj + 1) * C).min(vh - 1) {
+                        for i in ci * C..=((ci + 1) * C).min(vw - 1) {
+                            let n = j * vw + i;
+                            if field[n].is_nan() {
+                                field[n] = f(i, j);
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
-    for j in 0..vh {
-        for i in 0..vw {
-            let n = j * vw + i;
-            if field[n].is_nan() {
-                let (ci, cj) = (((i + C / 2) / C).min(cw - 1), ((j + C / 2) / C).min(ch - 1));
-                field[n] = coarse[cj * cw + ci];
+            for j in 0..vh {
+                for i in 0..vw {
+                    let n = j * vw + i;
+                    if field[n].is_nan() {
+                        let (ci, cj) = (((i + C / 2) / C).min(cw - 1), ((j + C / 2) / C).min(ch - 1));
+                        field[n] = coarse[cj * cw + ci];
+                    }
+                }
             }
-        }
-    }
-    field
+            f_action(&field)
+        })
+    })
+}
+
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+fn sample_field(shapes: &[(usize, Prepared)], k: f32, iso: f32, x0: f32, y0: f32, vw: usize, vh: usize, step: f32) -> Vec<f32> {
+    with_sampled_field(shapes, k, iso, x0, y0, vw, vh, step, |f| f.to_vec())
 }
 
 /// Marching squares over a `w x h` cell grid starting at `(x0, y0)`.
 #[allow(clippy::too_many_arguments)]
 fn march(shapes: &[(usize, Prepared)], k: f32, iso: f32, x0: f32, y0: f32, w: usize, h: usize, step: f32) -> Vec<Vec<Point<Pixels>>> {
     let (vw, vh) = (w + 1, h + 1);
-    let field = sample_field(shapes, k, iso, x0, y0, vw, vh, step);
-    let v = |i: usize, j: usize| field[j * vw + i];
+    with_sampled_field(shapes, k, iso, x0, y0, vw, vh, step, |field| {
+        let v = |i: usize, j: usize| field[j * vw + i];
     let h_id = |i: usize, j: usize| j * w + i;
     let v_id = |i: usize, j: usize| vw * vh + j * vw + i;
     let mut points: HashMap<usize, Point<Pixels>> = HashMap::new();
@@ -592,7 +659,8 @@ fn march(shapes: &[(usize, Prepared)], k: f32, iso: f32, x0: f32, y0: f32, w: us
             loops.push(path.into_iter().filter_map(|id| points.get(&id).copied()).collect());
         }
     }
-    loops
+        loops
+    })
 }
 
 /// Fills the merged outline of `rects`. `smoothing` is the fillet radius where shapes

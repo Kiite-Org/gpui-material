@@ -10,6 +10,7 @@ pub mod geometry;
 pub mod material_shapes;
 pub mod morph;
 pub mod polygon;
+pub mod sdf;
 
 pub use features::Feature;
 pub use geometry::{
@@ -19,6 +20,7 @@ pub use geometry::{
 pub use material_shapes::MaterialShapes;
 pub use morph::Morph;
 pub use polygon::{CornerRounding, RoundedPolygon};
+pub use sdf::shape_sdf;
 
 /// Number of perimeter sample points used to represent each normalized shape in point mode.
 pub const SHAPE_SAMPLE_COUNT: usize = 180;
@@ -273,6 +275,17 @@ impl MaterialShape {
             all
         });
         &cache[*self as usize]
+    }
+
+    /// Evaluates the signed distance field (SDF) of this shape at local normalized coordinate `(x, y)`.
+    ///
+    /// The shape is centered at `(0.0, 0.0)` with a normalized half-extent of ~0.5.
+    /// Returns:
+    /// - `< 0.0`: strictly inside the shape
+    /// - `== 0.0`: on the perimeter
+    /// - `> 0.0`: outside the shape
+    pub fn sdf(&self, x: f32, y: f32) -> f32 {
+        shape_sdf(*self, x, y)
     }
 }
 

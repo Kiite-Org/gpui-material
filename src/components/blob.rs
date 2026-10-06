@@ -28,6 +28,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use gpui::{point, px, Bounds, PathBuilder, Pixels, Point, Rgba, Window};
+use super::shape::MaterialShape;
 
 thread_local! {
     static FIELD_SCRATCH: RefCell<Vec<f32>> = const { RefCell::new(Vec::new()) };
@@ -289,12 +290,9 @@ impl BlobRect {
         let r = self.radii.map(|r| r.clamp(0.0, max_r.max(0.0)));
         let stretch = self.deform.max_eigen().max(1.0);
         Prepared {
+            kind: PreparedKind::Rect { hw: w / 2.0, hh: h / 2.0, r },
             cx: x + w / 2.0,
             cy: y + h / 2.0,
-            hw: w / 2.0,
-            hh: h / 2.0,
-            // tl, tr, br, bl
-            r,
             inv: self.deform.inverse(),
             min_eig: self.deform.min_eigen().max(0.01),
             ext_x: w / 2.0 * stretch,
@@ -303,68 +301,289 @@ impl BlobRect {
             melt: self.melt,
             reach: self.melt.iter().flatten().map(|m| m.1).fold(0.0, f32::max),
             empty: w < 0.5 || h < 0.5,
+            color: None,
+        }
+    }
+}
+
+/// One Material 3 shape in a liquid blob group.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BlobShape {
+    /// Which Material 3 shape this blob is.
+    pub shape: MaterialShape,
+    /// Target shape being morphed into, if actively morphing.
+    pub morph_to: Option<MaterialShape>,
+    /// Progress of the morph animation from 0.0 to 1.0.
+    pub morph_progress: f32,
+    /// Center of the shape.
+    pub center: Point<Pixels>,
+    /// Radius (half-size) of the shape.
+    pub radius: Pixels,
+    /// Rotation in degrees.
+    pub rotation: f32,
+    /// Squash and stretch around the center.
+    pub deform: Deform,
+    /// Color of this individual shape blob.
+    pub color: Option<Rgba>,
+    /// Bit `i` set: don't smooth-merge with shape `i` of the same slice.
+    pub exclude: u64,
+    /// Edges the shape melts into, each with its fillet radius.
+    pub melt: [Option<(Edge, f32)>; 4],
+}
+
+impl BlobShape {
+    /// A new Material 3 shape blob with given shape, center, and radius.
+    #[must_use]
+    pub fn new(shape: MaterialShape, center: Point<Pixels>, radius: Pixels) -> Self {
+        Self {
+            shape,
+            morph_to: None,
+            morph_progress: 0.0,
+            center,
+            radius,
+            rotation: 0.0,
+            deform: Deform::IDENTITY,
+            color: None,
+            exclude: 0,
+            melt: [None; 4],
+        }
+    }
+
+    /// Sets a target shape to morph into with animated progress `t` in `[0.0, 1.0]`.
+    #[must_use]
+    pub fn morph_to(mut self, target: MaterialShape, progress: f32) -> Self {
+        self.morph_to = Some(target);
+        self.morph_progress = progress.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Construct a shape blob fitting inside layout `bounds`.
+    #[must_use]
+    pub fn from_bounds(shape: MaterialShape, bounds: Bounds<Pixels>) -> Self {
+        let center = bounds.center();
+        let radius = bounds.size.width.min(bounds.size.height) / 2.0;
+        Self::new(shape, center, radius)
+    }
+
+    /// Rotates the shape by `degrees` clockwise.
+    #[must_use]
+    pub fn rotation(mut self, degrees: f32) -> Self {
+        self.rotation = degrees;
+        self
+    }
+
+    /// Applies a deformation.
+    #[must_use]
+    pub fn deform(mut self, deform: Deform) -> Self {
+        self.deform = deform;
+        self
+    }
+
+    /// Sets the color of this blob.
+    #[must_use]
+    pub fn color(mut self, color: Rgba) -> Self {
+        self.color = Some(color);
+        self
+    }
+
+    /// Hard union (no smooth merge) with the shape at `index`.
+    #[must_use]
+    pub fn exclude(mut self, index: usize) -> Self {
+        self.exclude |= 1 << index.min(63);
+        self
+    }
+
+    /// Melts the shape into `edge`.
+    #[must_use]
+    pub fn melt_into(mut self, edge: Edge, radius: f32) -> Self {
+        if let Some(slot) = self.melt.iter_mut().find(|m| m.is_none()) {
+            *slot = Some((edge, radius.max(0.0)));
+        }
+        self
+    }
+
+    /// True when two shape blobs are visually identical (within epsilon tolerance).
+    pub fn approx_eq(&self, other: &Self) -> bool {
+        let eps = 0.25f32;
+        let center_close = (f32::from(self.center.x) - f32::from(other.center.x)).abs() <= eps
+            && (f32::from(self.center.y) - f32::from(other.center.y)).abs() <= eps;
+        let radius_close = (f32::from(self.radius) - f32::from(other.radius)).abs() <= eps;
+        let rot_close = (self.rotation - other.rotation).abs() <= 0.5;
+        let deform_close = (self.deform.m00 - other.deform.m00).abs() <= 0.002
+            && (self.deform.m01 - other.deform.m01).abs() <= 0.002
+            && (self.deform.m11 - other.deform.m11).abs() <= 0.002;
+        center_close
+            && radius_close
+            && rot_close
+            && deform_close
+            && self.shape == other.shape
+            && self.morph_to == other.morph_to
+            && (self.morph_progress - other.morph_progress).abs() <= 0.01
+            && self.exclude == other.exclude
+            && self.melt == other.melt
+            && self.color == other.color
+    }
+
+    fn prepared(&self) -> Prepared {
+        let cx = f32::from(self.center.x);
+        let cy = f32::from(self.center.y);
+        let rad = f32::from(self.radius);
+        let stretch = self.deform.max_eigen().max(1.0);
+        let (sin_rot, cos_rot) = self.rotation.to_radians().sin_cos();
+        Prepared {
+            kind: PreparedKind::Shape {
+                shape: self.shape,
+                morph_to: self.morph_to,
+                morph_t: self.morph_progress,
+                radius: rad,
+                sin_rot,
+                cos_rot,
+            },
+            cx,
+            cy,
+            inv: self.deform.inverse(),
+            min_eig: self.deform.min_eigen().max(0.01),
+            ext_x: rad * stretch,
+            ext_y: rad * stretch,
+            exclude: self.exclude,
+            melt: self.melt,
+            reach: self.melt.iter().flatten().map(|m| m.1).fold(0.0, f32::max),
+            empty: rad < 0.5,
+            color: self.color,
         }
     }
 }
 
 #[derive(Clone, Copy)]
+enum PreparedKind {
+    Rect {
+        hw: f32,
+        hh: f32,
+        r: [f32; 4],
+    },
+    Shape {
+        shape: MaterialShape,
+        morph_to: Option<MaterialShape>,
+        morph_t: f32,
+        radius: f32,
+        sin_rot: f32,
+        cos_rot: f32,
+    },
+}
+
+#[derive(Clone, Copy)]
 struct Prepared {
+    kind: PreparedKind,
     cx: f32,
     cy: f32,
-    hw: f32,
-    hh: f32,
-    r: [f32; 4],
     inv: (f32, f32, f32),
     min_eig: f32,
     ext_x: f32,
     ext_y: f32,
     exclude: u64,
     melt: [Option<(Edge, f32)>; 4],
-    /// Largest melt radius: how far past the shape its fillets reach.
     reach: f32,
     empty: bool,
+    color: Option<Rgba>,
 }
 
 impl Prepared {
-    /// Outline of the (deformed) rounded box, grown by `iso`.
+    /// Outline of the shape or deformed rounded box, grown by `iso`.
     fn outline(&self, iso: f32) -> Vec<Point<Pixels>> {
-        let grow = iso / self.min_eig;
-        let (hw, hh) = (self.hw + grow, self.hh + grow);
         let (i00, i01, i11) = self.inv;
         // forward deform = inverse of the stored inverse
         let det = i00 * i11 - i01 * i01;
         let (m00, m01, m11) = if det.abs() < 1e-6 { (1.0, 0.0, 1.0) } else { (i11 / det, -i01 / det, i00 / det) };
-        let mut pts = Vec::new();
-        // corners clockwise from top left: center offset signs and start angle
-        let corners = [(-1.0f32, -1.0f32, std::f32::consts::PI, self.r[0]), (1.0, -1.0, 1.5 * std::f32::consts::PI, self.r[1]), (1.0, 1.0, 0.0, self.r[2]), (-1.0, 1.0, 0.5 * std::f32::consts::PI, self.r[3])];
-        for (sx, sy, a0, r) in corners {
-            let r = (r + grow).max(0.0).min(hw.min(hh));
-            let (ccx, ccy) = (sx * (hw - r), sy * (hh - r));
-            let n = if r < 0.5 { 1 } else { ((r / 2.0).ceil() as usize).clamp(4, 24) };
-            for k in 0..=n {
-                let a = a0 + std::f32::consts::FRAC_PI_2 * k as f32 / n as f32;
-                let (qx, qy) = (ccx + r * a.cos(), ccy + r * a.sin());
-                pts.push(point(px(self.cx + m00 * qx + m01 * qy), px(self.cy + m01 * qx + m11 * qy)));
+
+        match self.kind {
+            PreparedKind::Rect { hw, hh, r } => {
+                let grow = iso / self.min_eig;
+                let (hw, hh) = (hw + grow, hh + grow);
+                let mut pts = Vec::new();
+                let corners = [(-1.0f32, -1.0f32, std::f32::consts::PI, r[0]), (1.0, -1.0, 1.5 * std::f32::consts::PI, r[1]), (1.0, 1.0, 0.0, r[2]), (-1.0, 1.0, 0.5 * std::f32::consts::PI, r[3])];
+                for (sx, sy, a0, cr) in corners {
+                    let cr = (cr + grow).max(0.0).min(hw.min(hh));
+                    let (ccx, ccy) = (sx * (hw - cr), sy * (hh - cr));
+                    let n = if cr < 0.5 { 1 } else { ((cr / 2.0).ceil() as usize).clamp(4, 24) };
+                    for k in 0..=n {
+                        let a = a0 + std::f32::consts::FRAC_PI_2 * k as f32 / n as f32;
+                        let (qx, qy) = (ccx + cr * a.cos(), ccy + cr * a.sin());
+                        pts.push(point(px(self.cx + m00 * qx + m01 * qy), px(self.cy + m01 * qx + m11 * qy)));
+                    }
+                }
+                pts
+            }
+            PreparedKind::Shape { shape, morph_to, morph_t, radius, sin_rot, cos_rot } => {
+                let pts = if let Some(target) = morph_to {
+                    let p1 = shape.polygon();
+                    let p2 = target.polygon();
+                    let morph = super::shape::Morph::new(&p1, &p2);
+                    let cubics = morph.as_cubics(morph_t.clamp(0.0, 1.0));
+                    let mut out = [[0.0f32; 2]; super::shape::SHAPE_SAMPLE_COUNT];
+                    if !cubics.is_empty() {
+                        let n = cubics.len();
+                        for i in 0..super::shape::SHAPE_SAMPLE_COUNT {
+                            let t_global = i as f32 / super::shape::SHAPE_SAMPLE_COUNT as f32;
+                            let c_frac = t_global * (n as f32);
+                            let idx = (c_frac.floor() as usize).min(n - 1);
+                            let t = c_frac - idx as f32;
+                            let pt = cubics[idx].point_on_curve(t);
+                            out[i] = [pt.x, pt.y];
+                        }
+                    }
+                    out
+                } else {
+                    *shape.points()
+                };
+                let grow = iso / self.min_eig;
+                let diam = 2.0 * (radius + grow);
+                let mut out = Vec::with_capacity(super::shape::SHAPE_SAMPLE_COUNT);
+                for p in pts {
+                    let lx = (p[0] - 0.5) * diam;
+                    let ly = (p[1] - 0.5) * diam;
+                    let rx = lx * cos_rot - ly * sin_rot;
+                    let ry = lx * sin_rot + ly * cos_rot;
+                    let fx = m00 * rx + m01 * ry;
+                    let fy = m01 * rx + m11 * ry;
+                    out.push(point(px(self.cx + fx), px(self.cy + fy)));
+                }
+                out
             }
         }
-        pts
     }
 
     fn sdf(&self, px_: f32, py: f32) -> f32 {
         let (dx, dy) = (px_ - self.cx, py - self.cy);
         let (i00, i01, i11) = self.inv;
         let (qx, qy) = (i00 * dx + i01 * dy, i01 * dx + i11 * dy);
-        // radius of the quadrant the point is in
-        let r = match (qx > 0.0, qy > 0.0) {
-            (false, false) => self.r[0],
-            (true, false) => self.r[1],
-            (true, true) => self.r[2],
-            (false, true) => self.r[3],
-        };
-        let ax = qx.abs() - self.hw + r;
-        let ay = qy.abs() - self.hh + r;
-        let outside = (ax.max(0.0).powi(2) + ay.max(0.0).powi(2)).sqrt();
-        (ax.max(ay).min(0.0) + outside - r) * self.min_eig
+        match self.kind {
+            PreparedKind::Rect { hw, hh, r } => {
+                let r_corner = match (qx > 0.0, qy > 0.0) {
+                    (false, false) => r[0],
+                    (true, false) => r[1],
+                    (true, true) => r[2],
+                    (false, true) => r[3],
+                };
+                let ax = qx.abs() - hw + r_corner;
+                let ay = qy.abs() - hh + r_corner;
+                let outside = (ax.max(0.0).powi(2) + ay.max(0.0).powi(2)).sqrt();
+                (ax.max(ay).min(0.0) + outside - r_corner) * self.min_eig
+            }
+            PreparedKind::Shape { shape, morph_to, morph_t, radius, sin_rot, cos_rot } => {
+                let rx = qx * cos_rot + qy * sin_rot;
+                let ry = -qx * sin_rot + qy * cos_rot;
+                let local_x = rx / (2.0 * radius.max(0.1));
+                let local_y = ry / (2.0 * radius.max(0.1));
+                let d0 = shape.sdf(local_x, local_y);
+                let unit_d = if let Some(target) = morph_to {
+                    let d1 = target.sdf(local_x, local_y);
+                    d0 * (1.0 - morph_t) + d1 * morph_t
+                } else {
+                    d0
+                };
+                unit_d * (2.0 * radius) * self.min_eig
+            }
+        }
     }
 }
 
@@ -428,10 +647,10 @@ pub fn rects_approx_eq(a: &[BlobRect], b: &[BlobRect]) -> bool {
 /// Outlines of the merged shapes where the field equals `iso` (0 for the surface,
 /// positive values for grown copies, e.g. for soft shadows). `step` is the grid size in
 /// pixels; 2 gives smooth curves.
-pub fn blob_contours(rects: &[BlobRect], smoothing: f32, step: f32, iso: f32) -> Vec<Vec<Point<Pixels>>> {
+/// Computes contours for prepared shapes grouped into clusters.
+fn prepared_contours(prepared: &[(usize, Prepared)], smoothing: f32, step: f32, iso: f32) -> Vec<(Vec<Vec<Point<Pixels>>>, Option<Rgba>)> {
     let k = smoothing.max(0.5);
     let step = step.max(0.5);
-    let prepared: Vec<(usize, Prepared)> = rects.iter().enumerate().map(|(i, r)| (i, r.prepared())).filter(|(_, p)| !p.empty).collect();
     let pad = |p: &Prepared| k.max(p.reach) * 1.5 + iso.max(0.0) + step * 2.0;
     // group shapes whose padded boxes touch, each cluster gets its own grid
     let boxes: Vec<(f32, f32, f32, f32)> = prepared
@@ -466,10 +685,28 @@ pub fn blob_contours(rects: &[BlobRect], smoothing: f32, step: f32, iso: f32) ->
     }
     let mut out = Vec::new();
     for members in groups.values() {
+        let colors: Vec<Rgba> = members.iter().filter_map(|&idx| prepared[idx].1.color).collect();
+        let cluster_color = if colors.is_empty() {
+            None
+        } else {
+            let mut r = 0.0;
+            let mut g = 0.0;
+            let mut b = 0.0;
+            let mut a = 0.0;
+            for c in &colors {
+                r += c.r;
+                g += c.g;
+                b += c.b;
+                a += c.a;
+            }
+            let n = colors.len() as f32;
+            Some(Rgba { r: r / n, g: g / n, b: b / n, a: a / n })
+        };
+
         if let [only] = members.as_slice() {
-            // nothing to merge with: the outline is exact and needs no grid
-            if prepared[*only].1.reach <= 0.0 {
-                out.push(prepared[*only].1.outline(iso));
+            // Rectangles (e.g. OSD) have exact analytic outlines; shapes consistently march
+            if matches!(prepared[*only].1.kind, PreparedKind::Rect { .. }) && prepared[*only].1.reach <= 0.0 {
+                out.push((vec![prepared[*only].1.outline(iso)], cluster_color));
                 continue;
             }
         }
@@ -484,9 +721,30 @@ pub fn blob_contours(rects: &[BlobRect], smoothing: f32, step: f32, iso: f32) ->
         }
         x0 = (x0 / step).floor() * step;
         y0 = (y0 / step).floor() * step;
-        out.extend(march(&shapes, k, iso, x0, y0, ((x1 - x0) / step).ceil() as usize + 1, ((y1 - y0) / step).ceil() as usize + 1, step));
+        let loops = march(&shapes, k, iso, x0, y0, ((x1 - x0) / step).ceil() as usize + 1, ((y1 - y0) / step).ceil() as usize + 1, step);
+        out.push((loops, cluster_color));
     }
     out
+}
+
+/// Outlines of the merged shapes where the field equals `iso` (0 for the surface,
+/// positive values for grown copies, e.g. for soft shadows). `step` is the grid size in
+/// pixels; 2 gives smooth curves.
+pub fn blob_contours(rects: &[BlobRect], smoothing: f32, step: f32, iso: f32) -> Vec<Vec<Point<Pixels>>> {
+    let prepared: Vec<(usize, Prepared)> = rects.iter().enumerate().map(|(i, r)| (i, r.prepared())).filter(|(_, p)| !p.empty).collect();
+    prepared_contours(&prepared, smoothing, step, iso).into_iter().flat_map(|(loops, _)| loops).collect()
+}
+
+/// Outlines of merged Material 3 shape blobs where the field equals `iso`.
+pub fn blob_shape_contours(shapes: &[BlobShape], smoothing: f32, step: f32, iso: f32) -> Vec<Vec<Point<Pixels>>> {
+    let prepared: Vec<(usize, Prepared)> = shapes.iter().enumerate().map(|(i, s)| (i, s.prepared())).filter(|(_, p)| !p.empty).collect();
+    prepared_contours(&prepared, smoothing, step, iso).into_iter().flat_map(|(loops, _)| loops).collect()
+}
+
+/// Outlines of merged Material 3 shape blobs with their cluster colors.
+pub fn blob_shape_contours_colored(shapes: &[BlobShape], smoothing: f32, step: f32, iso: f32, default_color: Rgba) -> Vec<(Vec<Vec<Point<Pixels>>>, Rgba)> {
+    let prepared: Vec<(usize, Prepared)> = shapes.iter().enumerate().map(|(i, s)| (i, s.prepared())).filter(|(_, p)| !p.empty).collect();
+    prepared_contours(&prepared, smoothing, step, iso).into_iter().map(|(loops, c)| (loops, c.unwrap_or(default_color))).collect()
 }
 
 /// The merged SDF on a `vw x vh` vertex grid. It is sampled on a coarse grid first and
@@ -701,10 +959,599 @@ pub fn paint_contours(window: &mut Window, contours: &[Vec<Point<Pixels>>], colo
     }
 }
 
+/// Fills the merged outline of Material 3 shape blobs. `smoothing` is the fillet radius where shapes meet.
+pub fn paint_shape_blobs(window: &mut Window, shapes: &[BlobShape], smoothing: f32, color: Rgba) {
+    paint_contours(window, &blob_shape_contours(shapes, smoothing, 2.0, 0.0), color);
+}
+
+/// Fills merged Material 3 shape blobs, using each shape's / cluster's color.
+pub fn paint_shape_blobs_colored(window: &mut Window, shapes: &[BlobShape], smoothing: f32, default_color: Rgba) {
+    for (loops, color) in blob_shape_contours_colored(shapes, smoothing, 2.0, 0.0, default_color) {
+        paint_contours(window, &loops, color);
+    }
+}
+
+/// A floating blob in the [`LavaLamp`] fluid simulation.
+#[derive(Clone, Debug)]
+pub struct LavaBlob {
+    /// Material 3 shape of this blob.
+    pub shape: MaterialShape,
+    /// Target shape being morphed into, if actively morphing.
+    pub target_shape: Option<MaterialShape>,
+    /// Progress of the morph animation from 0.0 to 1.0.
+    pub morph_t: f32,
+    /// Duration of the morph in seconds.
+    pub morph_duration: f32,
+    /// Depth layer index this blob belongs to.
+    pub layer: usize,
+    /// X coordinate in pixels.
+    pub x: f32,
+    /// Y coordinate in pixels.
+    pub y: f32,
+    /// Horizontal velocity in pixels/sec.
+    pub vx: f32,
+    /// Vertical velocity in pixels/sec.
+    pub vy: f32,
+    /// Base radius in pixels before scale factor.
+    pub base_radius: f32,
+    /// Effective radius in pixels.
+    pub radius: f32,
+    /// Rotation angle in degrees.
+    pub rotation: f32,
+    /// Rotational velocity in deg/sec.
+    pub rot_speed: f32,
+    /// Deformation spring driving velocity squash and stretch.
+    pub deform: DeformSpring,
+    /// Heat / buoyancy factor (-1.0 sinks, +1.0 rises).
+    pub heat: f32,
+    /// Color of this blob.
+    pub color: Rgba,
+    /// Phase offset for natural horizontal wandering.
+    pub phase: f32,
+    /// Time remaining until next morph evaluation in seconds.
+    pub next_morph_in: f32,
+}
+
+/// A lava lamp simulation that drives fluidly floating and merging Material 3 shapes.
+#[derive(Clone, Debug)]
+pub struct LavaLamp {
+    /// Active floating blobs.
+    pub blobs: Vec<LavaBlob>,
+    /// Simulation viewport width in pixels.
+    pub width: f32,
+    /// Simulation viewport height in pixels.
+    pub height: f32,
+    /// Fillet smoothing radius for merging shapes (default 32.0).
+    pub smoothing: f32,
+    /// Speed multiplier for the fluid simulation (default 1.0).
+    pub speed: f32,
+    /// Global scale multiplier for blob radii (default 1.0).
+    pub scale: f32,
+    /// Convection churn / turbulence intensity (0..100, default 50.0).
+    pub churn: f32,
+    /// Viscous fluid drag (0..1, default 0.2).
+    pub drag: f32,
+    /// Rotational spin multiplier (default 1.0).
+    pub spin: f32,
+    /// Maximum velocity magnitude cap (default 250.0).
+    pub max_v: f32,
+    /// Mouse cursor attraction / drag force multiplier (default 1.0).
+    pub cursor_pull: f32,
+    /// Mouse interaction influence radius (default 150.0).
+    pub cursor_radius: f32,
+    /// Number of separate depth layers (shapes don't merge across layers).
+    pub layers: usize,
+    /// Percentage probability (0..100) of random shape morphing.
+    pub morph_chance: f32,
+    /// Active pool of candidate Material 3 shapes.
+    pub shape_pool: Vec<MaterialShape>,
+    /// Accumulated simulation time in seconds.
+    pub time: f32,
+    /// Last known mouse position in simulation pixels: `(x, y)`.
+    pub mouse_pos: Option<(f32, f32)>,
+    /// Smoothed mouse velocity in pixels/second.
+    pub mouse_vel: (f32, f32),
+    /// Whether mouse button is currently held.
+    pub mouse_down: bool,
+    /// Index of blob currently grabbed/dragged by mouse, if any.
+    pub dragged_blob: Option<usize>,
+    /// Timestamp of last mouse movement in simulation time.
+    pub last_mouse_time: f32,
+}
+
+impl LavaLamp {
+    /// Initializes a new lava lamp simulation with floating Material 3 shapes across depth layers.
+    pub fn new(
+        width: f32,
+        height: f32,
+        count: usize,
+        layers: usize,
+        shapes: &[MaterialShape],
+        colors: &[Rgba],
+    ) -> Self {
+        let num_layers = layers.max(1);
+        let palette = if colors.is_empty() {
+            vec![
+                gpui::rgb(0x6750a4).into(),
+                gpui::rgb(0x7d5260).into(),
+                gpui::rgb(0x625b71).into(),
+                gpui::rgb(0x9a82db).into(),
+                gpui::rgb(0xb58392).into(),
+            ]
+        } else {
+            colors.to_vec()
+        };
+
+        let default_shapes = [
+            MaterialShape::Cookie9Sided,
+            MaterialShape::Flower,
+            MaterialShape::Heart,
+            MaterialShape::Arch,
+            MaterialShape::Sunny,
+            MaterialShape::Clover4Leaf,
+            MaterialShape::Gem,
+            MaterialShape::Boom,
+            MaterialShape::Pill,
+            MaterialShape::Cookie4Sided,
+            MaterialShape::Ghostish,
+            MaterialShape::Diamond,
+        ];
+        let shape_pool = if shapes.is_empty() {
+            &default_shapes[..]
+        } else {
+            shapes
+        };
+
+        let w = width.max(100.0);
+        let h = height.max(100.0);
+        let base_radius = (w.min(h) * 0.06).clamp(32.0, 85.0);
+
+        let mut blobs = Vec::with_capacity(count);
+        for i in 0..count {
+            let frac = (i as f32 + 0.5) / count.max(1) as f32;
+            let shape = shape_pool[i % shape_pool.len()];
+            let layer = i % num_layers;
+            let color = palette[layer % palette.len()];
+
+            // Alternate starting positions: some in top half (cooling), some in bottom half (warming)
+            let (init_y, heat) = if i % 2 == 0 {
+                (h * (0.55 + 0.35 * (frac * 3.14159).sin()), 0.8)
+            } else {
+                (h * (0.1 + 0.35 * (frac * 3.14159).cos().abs()), -0.8)
+            };
+
+            let init_x = w * (0.12 + 0.76 * ((i as f32 * 1.618033).fract()));
+            let radius_var = base_radius * (0.8 + 0.45 * ((i as f32 * 0.732).fract()));
+
+            blobs.push(LavaBlob {
+                shape,
+                target_shape: None,
+                morph_t: 0.0,
+                morph_duration: 2.0,
+                layer,
+                x: init_x,
+                y: init_y,
+                vx: if i % 2 == 0 { 12.0 } else { -12.0 },
+                vy: if heat > 0.0 { -25.0 } else { 25.0 },
+                base_radius: radius_var,
+                radius: radius_var,
+                rotation: (i as f32 * 45.0) % 360.0,
+                rot_speed: if i % 2 == 0 { 8.0 + (i as f32 * 3.0) % 15.0 } else { -8.0 - (i as f32 * 3.0) % 15.0 },
+                deform: DeformSpring::with_scale(0.00015),
+                heat,
+                color,
+                phase: i as f32 * 1.3,
+                next_morph_in: 3.0 + ((i as f32 * 1.7).fract()) * 6.0,
+            });
+        }
+
+        Self {
+            blobs,
+            width: w,
+            height: h,
+            smoothing: 32.0,
+            speed: 1.0,
+            scale: 1.0,
+            churn: 50.0,
+            drag: 0.2,
+            spin: 1.0,
+            max_v: 250.0,
+            cursor_pull: 1.0,
+            cursor_radius: 150.0,
+            layers: num_layers,
+            morph_chance: 20.0,
+            shape_pool: shape_pool.to_vec(),
+            time: 0.0,
+            mouse_pos: None,
+            mouse_vel: (0.0, 0.0),
+            mouse_down: false,
+            dragged_blob: None,
+            last_mouse_time: 0.0,
+        }
+    }
+
+    /// Sets physics and animation parameters.
+    pub fn set_params(
+        &mut self,
+        smoothing: f32,
+        speed: f32,
+        scale: f32,
+        churn: f32,
+        drag: f32,
+        spin: f32,
+        max_v: f32,
+        cursor_pull: f32,
+        cursor_radius: f32,
+        morph_chance: f32,
+    ) {
+        self.smoothing = smoothing.max(0.0);
+        self.speed = speed.clamp(0.1, 5.0);
+        self.scale = scale.clamp(0.2, 3.0);
+        self.churn = churn.clamp(0.0, 100.0);
+        self.drag = drag.clamp(0.0, 1.0);
+        self.spin = spin.clamp(0.0, 5.0);
+        self.max_v = max_v.max(10.0);
+        self.cursor_pull = cursor_pull.clamp(0.0, 5.0);
+        self.cursor_radius = cursor_radius.clamp(10.0, 600.0);
+        self.morph_chance = morph_chance.clamp(0.0, 100.0);
+
+        for b in &mut self.blobs {
+            b.radius = b.base_radius * self.scale;
+        }
+    }
+
+    /// Updates viewport dimensions when the window or screen is resized.
+    pub fn set_size(&mut self, width: f32, height: f32) {
+        if (self.width - width).abs() > 1.0 || (self.height - height).abs() > 1.0 {
+            self.width = width.max(100.0);
+            self.height = height.max(100.0);
+            for b in &mut self.blobs {
+                b.x = b.x.clamp(b.radius, (self.width - b.radius).max(b.radius));
+                b.y = b.y.clamp(b.radius, (self.height - b.radius).max(b.radius));
+            }
+        }
+    }
+
+    /// Updates mouse position and tracks smoothed cursor velocity for fluid wake and stirring.
+    pub fn on_mouse_move(&mut self, x: f32, y: f32) {
+        if let Some((px, py)) = self.mouse_pos {
+            let dx = x - px;
+            let dy = y - py;
+            self.mouse_vel.0 = self.mouse_vel.0 * 0.4 + dx * 0.6;
+            self.mouse_vel.1 = self.mouse_vel.1 * 0.4 + dy * 0.6;
+        }
+        self.mouse_pos = Some((x, y));
+        self.last_mouse_time = self.time;
+    }
+
+    /// Handles mouse press: grabs a nearby blob if clicked, or emits a radial fluid shockwave.
+    pub fn on_mouse_down(&mut self, x: f32, y: f32) {
+        self.mouse_pos = Some((x, y));
+        self.mouse_down = true;
+        self.last_mouse_time = self.time;
+
+        // Check if user clicked near any blob to drag it
+        let mut clicked = None;
+        let mut min_dist = f32::MAX;
+        for (i, b) in self.blobs.iter().enumerate() {
+            let d = ((b.x - x).powi(2) + (b.y - y).powi(2)).sqrt();
+            if d < b.radius * 1.35 && d < min_dist {
+                min_dist = d;
+                clicked = Some(i);
+            }
+        }
+
+        if let Some(idx) = clicked {
+            self.dragged_blob = Some(idx);
+            let b = &mut self.blobs[idx];
+            b.vx = 0.0;
+            b.vy = 0.0;
+        } else {
+            // Click in empty space sends a shockwave pushing nearby blobs outward
+            let shock_rad = (self.cursor_radius * 2.2).max(100.0);
+            for b in &mut self.blobs {
+                let dx = b.x - x;
+                let dy = b.y - y;
+                let dist = (dx * dx + dy * dy).sqrt().max(1.0);
+                if dist < shock_rad {
+                    let factor = (1.0 - dist / shock_rad).powi(2) * 160.0 * self.cursor_pull;
+                    b.vx += (dx / dist) * factor;
+                    b.vy += (dy / dist) * factor;
+                }
+            }
+        }
+    }
+
+    /// Releases dragged blob, flinging it with accumulated cursor velocity.
+    pub fn on_mouse_up(&mut self) {
+        self.mouse_down = false;
+        if let Some(idx) = self.dragged_blob.take() {
+            if let Some(b) = self.blobs.get_mut(idx) {
+                let fling_speed = (self.mouse_vel.0.powi(2) + self.mouse_vel.1.powi(2)).sqrt();
+                if fling_speed > 1.0 {
+                    b.vx = (self.mouse_vel.0 * 8.0 * self.cursor_pull).clamp(-self.max_v, self.max_v);
+                    b.vy = (self.mouse_vel.1 * 8.0 * self.cursor_pull).clamp(-self.max_v, self.max_v);
+                }
+            }
+        }
+    }
+
+    /// Clears mouse interaction when pointer leaves the window or monitor.
+    pub fn on_mouse_leave(&mut self) {
+        self.mouse_pos = None;
+        self.mouse_vel = (0.0, 0.0);
+        self.mouse_down = false;
+        self.dragged_blob = None;
+    }
+
+    /// Advances the simulation by elapsed time `dt` seconds.
+    pub fn step(&mut self, dt: f32) {
+        let dt = dt.clamp(0.001, 0.05);
+        let spd = self.speed.clamp(0.1, 5.0);
+        let sim_dt = dt * spd;
+        let w = self.width;
+        let h = self.height;
+
+        // Mouse velocity decay
+        self.mouse_vel.0 *= (0.02f32).powf(dt);
+        self.mouse_vel.1 *= (0.02f32).powf(dt);
+
+        // Clear idle mouse after 2.5s if not holding mouse button
+        if self.time - self.last_mouse_time > 2.5 && !self.mouse_down {
+            self.mouse_pos = None;
+        }
+
+        // 0. Dragged blob tracking
+        if let (Some(idx), Some((mx, my))) = (self.dragged_blob, self.mouse_pos) {
+            if let Some(b) = self.blobs.get_mut(idx) {
+                let pull = 16.0 * self.cursor_pull;
+                b.vx += ((mx - b.x) * pull - b.vx) * (20.0 * dt).min(1.0);
+                b.vy += ((my - b.y) * pull - b.vy) * (20.0 * dt).min(1.0);
+                b.heat = if b.y > h * 0.5 { 0.8 } else { -0.8 };
+            }
+        }
+
+        // Hover stirring & fluid wake
+        if let Some((mx, my)) = self.mouse_pos {
+            let mv_speed = (self.mouse_vel.0.powi(2) + self.mouse_vel.1.powi(2)).sqrt();
+            for (i, b) in self.blobs.iter_mut().enumerate() {
+                if Some(i) == self.dragged_blob {
+                    continue;
+                }
+                let dx = b.x - mx;
+                let dy = b.y - my;
+                let dist = (dx * dx + dy * dy).sqrt().max(1.0);
+                let interact_rad = b.radius + self.cursor_radius;
+                if dist < interact_rad {
+                    let norm = 1.0 - dist / interact_rad;
+                    // Deflection force away from mouse
+                    let deflect = norm * 50.0 * self.cursor_pull * sim_dt;
+                    b.vx += (dx / dist) * deflect;
+                    b.vy += (dy / dist) * deflect;
+
+                    // Wake / stirring from cursor motion
+                    if mv_speed > 2.0 {
+                        b.vx += self.mouse_vel.0 * norm * 1.4 * self.cursor_pull * sim_dt;
+                        b.vy += self.mouse_vel.1 * norm * 1.4 * self.cursor_pull * sim_dt;
+                        // Impart spin from stirring
+                        let cross = (dx * self.mouse_vel.1 - dy * self.mouse_vel.0) / dist;
+                        b.rot_speed = (b.rot_speed + cross * 0.8 * self.cursor_pull * sim_dt).clamp(-60.0, 60.0);
+                    }
+                }
+            }
+        }
+
+        let churn_mult = (self.churn / 50.0).clamp(0.0, 3.0);
+        let drag_mult = (1.0 - self.drag * sim_dt).clamp(0.0, 1.0);
+
+        // Morph progression & cooldown update
+        for (i, b) in self.blobs.iter_mut().enumerate() {
+            if let Some(target) = b.target_shape {
+                b.morph_t += sim_dt / b.morph_duration.max(0.1);
+                if b.morph_t >= 1.0 {
+                    b.shape = target;
+                    b.target_shape = None;
+                    b.morph_t = 0.0;
+                    b.next_morph_in = 4.0 + ((self.time + b.phase * 5.3).sin().abs()) * 6.0;
+                }
+            } else if self.morph_chance > 0.0 && self.shape_pool.len() > 1 {
+                b.next_morph_in -= sim_dt;
+                if b.next_morph_in <= 0.0 {
+                    b.next_morph_in = 3.5 + ((self.time + b.phase * 4.1).sin().abs()) * 4.0;
+                    let hash = ((self.time * 17.13 + (i as f32) * 31.415 + b.x * 0.07).sin().abs() * 1000.0) % 100.0;
+                    if hash < self.morph_chance {
+                        let pick_idx = ((hash * 13.0) as usize) % self.shape_pool.len();
+                        let cand = self.shape_pool[pick_idx];
+                        if cand != b.shape {
+                            b.target_shape = Some(cand);
+                            b.morph_t = 0.0;
+                            b.morph_duration = 2.0;
+                        }
+                    }
+                }
+            }
+        }
+
+        for b in &mut self.blobs {
+            // 1. Buoyancy cycle: warm at bottom, cool at top
+            let heat_rate = 1.2 * churn_mult.max(0.1);
+            if b.y > h * 0.72 {
+                b.heat = (b.heat + heat_rate * sim_dt).min(1.0);
+            } else if b.y < h * 0.28 {
+                b.heat = (b.heat - heat_rate * sim_dt).max(-1.0);
+            }
+
+            // Buoyancy acceleration
+            let target_vy = -45.0 * b.heat * churn_mult;
+            b.vy += (target_vy - b.vy) * 2.0 * sim_dt;
+
+            // 2. Horizontal gentle wander
+            let h_drift = (self.time * 0.6 + b.phase).sin() * 22.0 * churn_mult;
+            b.vx += (h_drift - b.vx) * 1.5 * sim_dt;
+
+            // 3. Fluid drag
+            b.vx *= drag_mult;
+            b.vy *= drag_mult;
+
+            // 4. Max velocity clamp
+            let v_sq = b.vx * b.vx + b.vy * b.vy;
+            let max_v = self.max_v;
+            if v_sq > max_v * max_v && v_sq > 0.0 {
+                let v = v_sq.sqrt();
+                b.vx = (b.vx / v) * max_v;
+                b.vy = (b.vy / v) * max_v;
+            }
+
+            // 5. Soft wall containment
+            let margin = b.radius + 15.0;
+            if b.x < margin {
+                b.vx += 45.0 * sim_dt;
+            } else if b.x > w - margin {
+                b.vx -= 45.0 * sim_dt;
+            }
+
+            if b.y < margin {
+                b.vy = b.vy.abs() * 0.8;
+                b.heat = -1.0;
+            } else if b.y > h - margin {
+                b.vy = -b.vy.abs() * 0.8;
+                b.heat = 1.0;
+            }
+
+            // 6. Position & rotation integration
+            b.x = (b.x + b.vx * sim_dt).clamp(b.radius, (w - b.radius).max(b.radius));
+            b.y = (b.y + b.vy * sim_dt).clamp(b.radius, (h - b.radius).max(b.radius));
+            b.rotation = (b.rotation + b.rot_speed * self.spin * sim_dt).rem_euclid(360.0);
+
+            // 7. Spring deformation along velocity
+            b.deform.step(point(px(b.x), px(b.y)), dt);
+        }
+
+        self.time += sim_dt;
+    }
+
+    /// Converts current simulation state into shapes grouped by layer: `Vec<(layer_index, Vec<BlobShape>, layer_color)>`.
+    /// Shapes across different layers do not merge with each other.
+    pub fn layer_blob_shapes(&self, default_palette: &[Rgba]) -> Vec<(usize, Vec<BlobShape>, Rgba)> {
+        let num_layers = self.layers.max(1);
+        let mut layers_map: HashMap<usize, Vec<BlobShape>> = HashMap::new();
+        for b in &self.blobs {
+            let mut s = BlobShape::new(b.shape, point(px(b.x), px(b.y)), px(b.radius))
+                .rotation(b.rotation)
+                .deform(b.deform.value)
+                .color(b.color);
+            if let Some(target) = b.target_shape {
+                s = s.morph_to(target, b.morph_t);
+            }
+            layers_map.entry(b.layer % num_layers).or_default().push(s);
+        }
+
+        let mut out = Vec::with_capacity(num_layers);
+        for l in 0..num_layers {
+            let shapes = layers_map.remove(&l).unwrap_or_default();
+            let color = if !default_palette.is_empty() {
+                default_palette[l % default_palette.len()]
+            } else {
+                gpui::rgb(0x6750a4).into()
+            };
+            out.push((l, shapes, color));
+        }
+        out
+    }
+
+    /// Converts current simulation state into a flat slice of renderable [`BlobShape`]s.
+    pub fn blob_shapes(&self) -> Vec<BlobShape> {
+        self.blobs
+            .iter()
+            .map(|b| {
+                let mut s = BlobShape::new(b.shape, point(px(b.x), px(b.y)), px(b.radius))
+                    .rotation(b.rotation)
+                    .deform(b.deform.value)
+                    .color(b.color);
+                if let Some(target) = b.target_shape {
+                    s = s.morph_to(target, b.morph_t);
+                }
+                s
+            })
+            .collect()
+    }
+
+    /// Paints the merged lava lamp shapes layer-by-layer onto the given GPUI `window`.
+    pub fn paint(&self, window: &mut Window, default_palette: &[Rgba]) {
+        for (_layer, shapes, color) in self.layer_blob_shapes(default_palette) {
+            if !shapes.is_empty() {
+                paint_shape_blobs(window, &shapes, self.smoothing, color);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use gpui::size;
+
+    #[test]
+    fn shape_blobs_separate_make_separate_contours() {
+        let s1 = BlobShape::new(MaterialShape::Heart, point(px(100.0), px(100.0)), px(30.0));
+        let s2 = BlobShape::new(MaterialShape::Flower, point(px(300.0), px(100.0)), px(30.0));
+        let c = blob_shape_contours(&[s1, s2], 20.0, 2.0, 0.0);
+        assert_eq!(c.len(), 2, "Distant shapes should produce separate contours");
+    }
+
+    #[test]
+    fn shape_blobs_close_merge_into_one() {
+        // Two shapes 40px apart with radius 30px each (overlapping / touching with 25px smoothing): one merged contour
+        let s1 = BlobShape::new(MaterialShape::Heart, point(px(100.0), px(100.0)), px(30.0));
+        let s2 = BlobShape::new(MaterialShape::Flower, point(px(140.0), px(100.0)), px(30.0));
+        let c = blob_shape_contours(&[s1, s2], 25.0, 2.0, 0.0);
+        assert_eq!(c.len(), 1, "Touching shapes should merge into one liquid outline");
+    }
+
+    #[test]
+    fn lavalamp_steps_and_advances() {
+        let mut lamp = LavaLamp::new(800.0, 600.0, 4, 2, &[MaterialShape::Heart, MaterialShape::Arch], &[]);
+        let y0 = lamp.blobs[0].y;
+        lamp.step(0.016);
+        assert_ne!(lamp.blobs[0].y, y0);
+        assert_eq!(lamp.blob_shapes().len(), 4);
+    }
+
+    #[test]
+    fn lavalamp_layers_separated() {
+        let lamp = LavaLamp::new(800.0, 600.0, 6, 3, &[MaterialShape::Heart], &[]);
+        let layers = lamp.layer_blob_shapes(&[]);
+        assert_eq!(layers.len(), 3);
+        assert_eq!(layers[0].1.len(), 2);
+        assert_eq!(layers[1].1.len(), 2);
+        assert_eq!(layers[2].1.len(), 2);
+    }
+
+    #[test]
+    fn lavalamp_mouse_interaction() {
+        let mut lamp = LavaLamp::new(800.0, 600.0, 4, 1, &[MaterialShape::Heart, MaterialShape::Arch], &[]);
+        let b0_x = lamp.blobs[0].x;
+        let b0_y = lamp.blobs[0].y;
+
+        // 1. Mouse move stirs nearby blobs
+        lamp.on_mouse_move(b0_x + 10.0, b0_y + 10.0);
+        lamp.on_mouse_move(b0_x + 50.0, b0_y + 50.0);
+        lamp.step(0.016);
+        assert!(lamp.blobs[0].vx.abs() > 0.0 || lamp.blobs[0].vy.abs() > 0.0);
+
+        // 2. Mouse down on a blob initiates drag
+        lamp.on_mouse_down(lamp.blobs[0].x, lamp.blobs[0].y);
+        assert_eq!(lamp.dragged_blob, Some(0));
+
+        // 3. Moving mouse drags the blob
+        lamp.on_mouse_move(350.0, 250.0);
+        lamp.step(0.016);
+        lamp.step(0.016);
+
+        // 4. Mouse up flings it
+        lamp.on_mouse_up();
+        assert_eq!(lamp.dragged_blob, None);
+    }
 
     fn rect(x: f32, y: f32, w: f32, h: f32) -> BlobRect {
         BlobRect::new(Bounds::new(point(px(x), px(y)), size(px(w), px(h))))

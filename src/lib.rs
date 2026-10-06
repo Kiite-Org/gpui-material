@@ -71,7 +71,12 @@ pub use components::slider;
 pub use components::split_button;
 pub use components::switch;
 
-// Convenient root re-exports with inlined docs
+#[doc(inline)]
+pub use components::blob::{
+    BlobRect, BlobShape, Deform, DeformSpring, Edge, LavaBlob, LavaLamp, blob_contours,
+    blob_shape_contours, blob_shape_contours_colored, paint_blob_shadow, paint_blobs,
+    paint_contours, paint_shape_blobs, paint_shape_blobs_colored,
+};
 #[doc(inline)]
 pub use components::button::{
     ButtonColors, ButtonMetrics, ButtonModel, ButtonShape, ButtonSize, ButtonVariant,
@@ -114,6 +119,7 @@ pub use theme::{M3Palette, dark_scheme, light_scheme};
 
 /// Convenient prelude module for importing common models, enums, and theme helpers.
 pub mod prelude {
+    pub use crate::blob::{BlobRect, BlobShape, LavaLamp};
     pub use crate::button::{ButtonModel, ButtonShape, ButtonSize, ButtonVariant};
     pub use crate::card::{CardColors, CardMetrics, CardModel, CardVariant};
     pub use crate::icon::M3Icon;

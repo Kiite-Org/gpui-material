@@ -443,8 +443,9 @@ impl BlobShape {
             cy,
             inv: self.deform.inverse(),
             min_eig: self.deform.min_eigen().max(0.01),
-            ext_x: rad * stretch,
-            ext_y: rad * stretch,
+            // a shape fills its square; turned, the square's corners reach further out
+            ext_x: rad * stretch * (sin_rot.abs() + cos_rot.abs()),
+            ext_y: rad * stretch * (sin_rot.abs() + cos_rot.abs()),
             exclude: self.exclude,
             melt: self.melt,
             reach: self.melt.iter().flatten().map(|m| m.1).fold(0.0, f32::max),

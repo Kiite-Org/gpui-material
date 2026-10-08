@@ -127,6 +127,12 @@ impl DeformSpring {
         self.active
     }
 
+    /// Puts the spring at rest, for a shape that's no longer drawn: it only moves when
+    /// stepped, so one left wobbling would otherwise ask for frames forever.
+    pub fn rest(&mut self) {
+        *self = Self { stiffness: self.stiffness, damping: self.damping, deform_scale: self.deform_scale, ..Self::default() };
+    }
+
     /// Advances the spring given the shape's current center and the frame time.
     pub fn step(&mut self, center: Point<Pixels>, dt: f32) -> Deform {
         let Some(prev) = self.prev_center.replace(center) else { return self.value };

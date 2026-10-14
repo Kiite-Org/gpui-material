@@ -322,6 +322,8 @@ pub struct SliderPersistentState {
     pub initialized: bool,
     /// Timestamp of last animation tick.
     pub last_tick: Option<std::time::Instant>,
+    pub moving: bool,
+    pub drawn: Option<(gpui::WindowId, u64)>,
 }
 
 impl Default for SliderPersistentState {
@@ -334,6 +336,8 @@ impl Default for SliderPersistentState {
             handle_width: SpringState { pos: 4.0, vel: 0.0 },
             initialized: false,
             last_tick: None,
+            moving: false,
+            drawn: None,
         }
     }
 }
@@ -484,6 +488,14 @@ impl SliderModel {
             let mut map = states.borrow_mut();
             let st = map.entry(slider_id).or_default();
 
+            let here = (window.window_handle().window_id(), window.frame_count());
+            let shown = st.drawn.is_some_and(|(w, f)| w == here.0 && f + 1 >= here.1);
+            st.drawn = Some(here);
+            if !shown {
+                st.is_dragging = false;
+                st.live_value = None;
+            }
+
             let target_frac = if let Some(live) = st.live_value {
                 self.spec.fraction(live).clamp(0.0, 1.0)
             } else {
@@ -491,10 +503,13 @@ impl SliderModel {
             };
 
             let now = std::time::Instant::now();
-            if !st.initialized {
+            if !st.initialized || !shown {
                 st.display_pos = SpringState { pos: target_frac, vel: 0.0 };
                 st.handle_width = SpringState { pos: handle_w_idle, vel: 0.0 };
                 st.initialized = true;
+                st.moving = false;
+            }
+            if !st.moving {
                 st.last_tick = Some(now);
             }
 
@@ -534,7 +549,8 @@ impl SliderModel {
                 st.handle_width = SpringState { pos: target_w, vel: 0.0 };
             }
 
-            if !pos_settled || !width_settled {
+            st.moving = !pos_settled || !width_settled;
+            if st.moving {
                 window.request_animation_frame();
             }
 

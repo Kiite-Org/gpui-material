@@ -693,13 +693,18 @@ impl SliderModel {
 
                 if let Some(ref on_click) = on_icon_click_rc {
                     let on_click = on_click.clone();
-                    icon_div = icon_div.cursor_pointer().on_mouse_down(
-                        MouseButton::Left,
-                        move |_, window, cx| {
+                    icon_div = icon_div
+                        .cursor_pointer()
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            move |_, window, cx| {
+                                cx.stop_propagation();
+                                on_click(window, cx);
+                            },
+                        )
+                        .on_mouse_up(MouseButton::Left, |_, _, cx| {
                             cx.stop_propagation();
-                            on_click(window, cx);
-                        },
-                    );
+                        });
                 }
 
                 icon_div.child(
